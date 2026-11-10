@@ -24,12 +24,15 @@ export function yearRangeForStage(stage, birthDateStr) {
   };
 }
 
-/** Offline events overlapping [from, to], 邯郸 first, then 河北, then 全国. */
+/** Anything more local than the province (峰峰, 邯郸 …) counts as local. */
+export const isLocal = (region) => region !== '全国' && region !== '河北';
+const regionRank = (region) => (region === '全国' ? 2 : region === '河北' ? 1 : 0);
+
+/** Offline events overlapping [from, to]; within a year, local first, then 河北, then 全国. */
 export function eventsInRange(events, from, to) {
-  const order = { 邯郸: 0, 河北: 1, 全国: 2 };
   return events
     .filter((e) => e.year <= to && (e.yearEnd ?? e.year) >= from)
-    .sort((a, b) => a.year - b.year || (order[a.region] ?? 9) - (order[b.region] ?? 9));
+    .sort((a, b) => a.year - b.year || regionRank(a.region) - regionRank(b.region));
 }
 
 export function eventsForStage(events, stage, birthDateStr) {

@@ -5,7 +5,7 @@ import { downloadQuickBackup, downloadFullBackup, restore } from './backup.js';
 import {
   suggestStage, eventsForStage, yearRangeForStage, mergeTimeline, profileText,
   parseChapter, chapterMarkdown, daysSince, cryptoId, birthYear, nextBankQuestion,
-  UNSORTED, FREE_QUESTION,
+  UNSORTED, FREE_QUESTION, isLocal,
 } from './core.js';
 
 // Personal details are entered on first use and stay in this browser; nothing about her is in the code.
@@ -245,7 +245,7 @@ function eraAside(stage) {
   const web = state.webCues[stage.id] || [];
   const cue = (c, isWeb) => `<article class="cue">
     <div class="cue-top"><span class="cue-year">${c.year}${c.yearEnd ? `–${String(c.yearEnd).slice(2)}` : ''}</span>
-      <span class="tag ${c.region === '邯郸' ? 'local' : ''}">${h(c.region)}</span>${isWeb ? '<span class="tag">网上找到</span>' : ''}</div>
+      <span class="tag ${isLocal(c.region) ? 'local' : ''}">${h(c.region)}</span>${isWeb ? '<span class="tag">网上找到</span>' : ''}</div>
     <h3 class="cue-title">${h(c.title)}</h3>
     <p class="cue-summary">${h(c.summary)}</p>
     <p class="cue-q">“${h(c.cue)}”</p>
