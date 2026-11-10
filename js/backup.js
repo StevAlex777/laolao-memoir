@@ -1,7 +1,7 @@
 // Backups. Data lives only in this browser, so backups are the safety net.
 //  - Quick backup (.json): all text — profile, interviews, timeline, chapters. Auto-downloaded after each session.
 //  - Full backup (.zip): the same plus every voice recording.
-import { zipSync, unzipSync, strToU8, strFromU8 } from 'https://cdn.jsdelivr.net/npm/fflate@0.8.2/esm/browser.js';
+import { zipSync, unzipSync, strToU8, strFromU8 } from '../vendor/fflate-0.8.2.js';
 import { db } from './db.js';
 import { BACKUP_VERSION, validateBackup } from './core.js';
 
@@ -24,6 +24,7 @@ export async function collect() {
     turns: await db.all('turns'),
     timeline: await db.all('timeline'),
     chapters: await db.all('chapters'),
+    photos: (await db.all('photos')).map(({ blob, ...meta }) => meta), // images themselves go in the full backup
   };
 }
 
@@ -46,6 +47,7 @@ export async function downloadQuickBackup() {
 export async function downloadFullBackup() {
   const data = await collect();
   const files = { 'backup.json': strToU8(JSON.stringify(data, null, 1)) };
+  for (const p of await db.all('photos')) files[`photos/${p.id}.jpg`] = [new Uint8Array(await p.blob.arrayBuffer()), { level: 0 }];
   for (const a of await db.all('audio')) {
     const buf = new Uint8Array(await a.blob.arrayBuffer());
     files[`audio/${a.id}.${extFor(a.mime)}`] = [buf, { level: 0 }]; // audio is already compressed
@@ -60,11 +62,14 @@ export async function downloadFullBackup() {
 export async function restore(file) {
   let data;
   const audio = [];
+  const photoBlobs = {};
   if (/\.zip$/i.test(file.name)) {
     const entries = unzipSync(new Uint8Array(await file.arrayBuffer()));
     if (!entries['backup.json']) throw new Error('压缩包里没有 backup.json，不是本应用的完整备份。');
     data = JSON.parse(strFromU8(entries['backup.json']));
     for (const [path, bytes] of Object.entries(entries)) {
+      const pm = path.match(/^photos\/(.+)\.jpg$/);
+      if (pm) { photoBlobs[pm[1]] = new Blob([bytes], { type: 'image/jpeg' }); continue; }
       const m = path.match(/^audio\/(.+)\.(\w+)$/);
       if (!m) continue;
       const mime = Object.entries(EXT).find(([, e]) => e === m[2])?.[0] || 'audio/webm';
@@ -80,10 +85,14 @@ export async function restore(file) {
     await db.clear(s);
     for (const row of data[s]) await db.put(s, row);
   }
+  if (Object.keys(photoBlobs).length) {
+    await db.clear('photos');
+    for (const meta of data.photos || []) if (photoBlobs[meta.id]) await db.put('photos', { ...meta, blob: photoBlobs[meta.id] });
+  }
   if (audio.length) {
     await db.clear('audio');
     for (const a of audio) await db.put('audio', a);
   }
   await db.setKV('profile', data.profile);
-  return { turns: data.turns.length, audio: audio.length };
+  return { turns: data.turns.length, audio: audio.length, photos: Object.keys(photoBlobs).length };
 }

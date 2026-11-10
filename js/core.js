@@ -90,6 +90,8 @@ export const INTERVIEWER_SYSTEM = `你是一位温和、耐心的口述史访谈
 - 只输出要说给姥姥听的话，不要加引号、标题、解释或选项。`;
 
 export const UNSORTED = 'unsorted';
+export const PHOTO_QUESTION = '这张照片是什么时候、在哪儿拍的？照片里都有谁？';
+export const PHOTO_NOTE = `\n\n家人刚拿出上面这张老照片给姥姥看。请根据照片里能看到的东西（衣着、场景、房子、物件、动作）问一个具体的问题，引导她讲这张照片背后的事。不要猜照片里的人是谁、是哪一年，让姥姥自己说。`;
 export const FREE_QUESTION = '（姥姥主动讲的）';
 
 /** Without AI: the next question from the bank that hasn't been used in this stage. */
@@ -305,8 +307,8 @@ export function chapterMarkdown(profile, chapters, stages, answers = []) {
     const raw = answers.filter((a) => a.stage === stageId);
     if (!c && !raw.length) return;
     lines.push(`## ${title}`, '');
-    if (c) for (const p of c.paragraphs) lines.push(p.text, '');
-    else for (const a of raw) lines.push(a.free ? a.text : `**问：${a.question}**`, ...(a.free ? [] : ['', a.text]), '');
+    if (c) for (const p of c.paragraphs.filter((x) => !x.noprint)) lines.push(p.text, '');
+    else for (const a of raw.filter((x) => !x.noprint)) lines.push(a.free ? a.text : `**问：${a.question}**`, ...(a.free ? [] : ['', a.text]), '');
   };
   for (const s of stages) section(s.title, s.id);
   section('其他回忆', UNSORTED);

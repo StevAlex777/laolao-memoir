@@ -227,6 +227,29 @@ main { outline: none; }
 .help h2 { font-family: var(--display); font-weight: 400; font-size: 1.5rem; margin: 1.8rem 0 .6rem; }
 .help li { margin-bottom: .55rem; max-width: 40rem; }
 
+/* ---- photos ---- */
+.thumbs { display: flex; flex-wrap: wrap; gap: .7rem; margin: .8rem 0; }
+.thumb { position: relative; margin: 0; }
+.thumb img { display: block; height: 96px; width: auto; max-width: 160px; object-fit: cover; border: var(--line); border-radius: 12px; background: var(--glaze); }
+.thumb-x { position: absolute; top: -8px; right: -8px; width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--slip); background: var(--iron); color: var(--slip-hi); cursor: pointer; line-height: 1; font-size: 1rem; }
+.pill.is-disabled { opacity: .45; pointer-events: none; }
+.prose figure.photo { margin: .4rem 0 1.4rem 2em; }
+.prose figure.photo img { display: block; max-width: min(100%, 520px); max-height: 420px; border-radius: 6px; box-shadow: 0 4px 14px rgba(42, 29, 22, .18); background: var(--glaze); }
+
+/* ---- book editing ---- */
+.para-tools { display: flex; gap: 1.1rem; margin: -.5rem 0 .6rem 2em; }
+.para-edit { margin-bottom: 1rem; }
+.prose .noprint, .prose .noprint p { color: var(--iron-soft); text-decoration: line-through; text-decoration-color: rgba(79, 69, 61, .35); }
+.prose .noprint::after { content: "不印"; display: inline-block; margin-left: .5rem; font-family: var(--ui); font-size: .72rem; text-decoration: none; border: 1.5px solid var(--iron-soft); border-radius: 999px; padding: 0 .45rem; text-indent: 0; }
+.prose .qa[data-action] { cursor: pointer; border-radius: 8px; transition: background .15s; }
+.prose .qa[data-action]:hover { background: var(--glaze); }
+
+/* ---- timeline editing ---- */
+.tl-add { margin: -.6rem 0 1.6rem; }
+.tl-form { display: grid; grid-template-columns: 9rem 1fr; gap: 0 1rem; background: var(--slip-hi); border: var(--line); border-radius: 18px; padding: 1rem 1.2rem; margin: .8rem 0 1.2rem; }
+.tl-form .wide, .tl-form .actions { grid-column: 1 / -1; }
+.tl-form input, .tl-form textarea { border: 1.5px solid var(--iron); border-radius: 12px; padding: .5rem .75rem; background: var(--slip); }
+
 /* ---- feedback ---- */
 .toast {
   position: fixed; right: 1.5rem; top: 98px; z-index: 50; max-width: min(460px, 92vw);
@@ -278,6 +301,9 @@ main { outline: none; }
   body { background: #fff; }
   .page { padding: 0; }
   .prose p, .prose p.uncited { background: none; cursor: auto; }
+  .prose .noprint, .para-tools, .para-edit { display: none !important; }
+  .prose figure.photo { break-inside: avoid; margin-left: 0; }
+  .prose figure.photo img { box-shadow: none; max-height: 110mm; }
   .chapter { break-before: page; }
   .chapter:first-of-type { break-before: auto; }
 }

@@ -153,3 +153,13 @@ test('recognizer hints include her places and timeline names', () => {
   const ctx = asrContext({ birthplace: '河北邯郸峰峰', places: '女儿住邯郸市区' }, [{ place: '彭城', people: ['王老师'] }]);
   assert.match(ctx, /峰峰/); assert.match(ctx, /彭城/); assert.match(ctx, /王老师/);
 });
+
+test('paragraphs and answers marked 不印 are left out of the text export', () => {
+  const chapters = [{ stage: 'roots', paragraphs: [{ text: '印这段。', ids: [] }, { text: '家里的私事。', ids: [], noprint: true }] }];
+  const answers = [{ stage: 'childhood', question: '问', text: '印。' }, { stage: 'childhood', question: '问2', text: '不印。', noprint: true }];
+  const md = chapterMarkdown(profile, chapters, stages, answers);
+  assert.match(md, /印这段。/);
+  assert.doesNotMatch(md, /家里的私事/);
+  assert.match(md, /印。/);
+  assert.doesNotMatch(md, /不印。/);
+});

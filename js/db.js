@@ -1,11 +1,11 @@
 // IndexedDB storage. All data lives only in this browser on this computer.
 const DB_NAME = 'laolao-memoir';
-const STORES = ['kv', 'sessions', 'turns', 'audio', 'timeline', 'chapters'];
+const STORES = ['kv', 'sessions', 'turns', 'audio', 'timeline', 'chapters', 'photos'];
 let dbPromise;
 
 function open() {
   dbPromise ??= new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1);
+    const req = indexedDB.open(DB_NAME, 2); // v2: photos
     req.onupgradeneeded = () => {
       const db = req.result;
       for (const s of STORES) if (!db.objectStoreNames.contains(s)) db.createObjectStore(s, { keyPath: s === 'kv' ? 'key' : 'id' });

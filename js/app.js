@@ -2,11 +2,12 @@ import { db } from './db.js';
 import { VoiceCapture, speechSupport, speak } from './speech.js';
 import * as ai from './ai.js';
 import * as asr from './asr.js';
-import { downloadQuickBackup, downloadFullBackup, restore } from './backup.js';
+import * as photos from './photos.js';
+import { downloadQuickBackup, downloadFullBackup, restore, collect } from './backup.js';
 import {
   suggestStage, eventsForStage, yearRangeForStage, mergeTimeline, profileText,
   parseChapter, chapterMarkdown, daysSince, cryptoId, birthYear, nextBankQuestion,
-  UNSORTED, FREE_QUESTION, isLocal, asrContext, applyRefined,
+  UNSORTED, FREE_QUESTION, isLocal, asrContext, applyRefined, PHOTO_QUESTION,
 } from './core.js';
 
 // Personal details are entered on first use and stay in this browser; nothing about her is in the code.
@@ -39,6 +40,9 @@ const state = {
   micError: '',
   asrStatus: null,  // local Qwen3-ASR service, or null when not installed/running
   pendingClips: [], // audio ids recorded for the answer being composed (already saved to disk)
+  pendingPhotos: [], // photo ids shown during the answer being composed
+  editingPara: null, // 'stageId:index' of a chapter paragraph being edited
+  tlEditing: null,   // 'new' or a timeline id being edited
 };
 
 const $app = document.getElementById('app');
@@ -65,6 +69,8 @@ const ICONS = {
   stop: '<rect x="6.5" y="6.5" width="11" height="11" rx="2"/>',
   pause: '<path d="M9 6v12M15 6v12"/>',
   arrow: '<path d="M5 12h13.5M13 6.5 18.5 12 13 17.5"/>',
+  photo: '<rect x="3.5" y="5.5" width="17" height="13" rx="2"/><circle cx="9" cy="10.5" r="1.8"/><path d="m20.5 16-5-4.5-7 6.5"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
 };
 const icon = (name, size = 20) => `<svg class="ico" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
 
@@ -87,6 +93,7 @@ async function boot() {
     state.question = (await db.getKV('currentQuestion')) || stageById(state.session.stage).opening;
     state.draft = (await db.getKV('draft')) || '';
     state.pendingClips = (await db.getKV('pendingClips')) || [];
+    state.pendingPhotos = (await db.getKV('pendingPhotos')) || [];
   }
   checkASR();
   setInterval(checkASR, 30_000);
@@ -115,9 +122,26 @@ function render() {
   const box = document.getElementById('answer-box');
   if (box) {
     box.value = state.draft;
-    box.addEventListener('input', () => { state.draft = box.value; });
+    box.addEventListener('input', () => { state.draft = box.value; saveDraftSoon(); });
+  }
+  hydratePhotos();
+}
+
+// Photos render as <img data-photo=id>; object URLs are filled in after each render.
+const photoUrls = new Map();
+async function hydratePhotos() {
+  for (const img of document.querySelectorAll('img[data-photo]')) {
+    const id = img.dataset.photo;
+    if (!photoUrls.has(id)) {
+      const p = await db.get('photos', id);
+      if (!p) continue;
+      photoUrls.set(id, URL.createObjectURL(p.blob));
+    }
+    img.src = photoUrls.get(id);
   }
 }
+const thumbs = (ids, removable = false) => ids?.length ? `<div class="thumbs">${ids.map((id) => `<figure class="thumb"><img data-photo="${id}" alt="老照片">${removable ? `<button class="thumb-x" data-action="drop-photo" data-id="${id}" aria-label="去掉这张">×</button>` : ''}</figure>`).join('')}</div>` : '';
+const figures = (ids) => (ids || []).map((id) => `<figure class="photo"><img data-photo="${id}" alt="老照片"></figure>`).join('');
 
 async function renderBackupPill() {
   const pill = document.getElementById('backup-pill');
@@ -170,6 +194,7 @@ function viewInterview() {
         <button class="pill quiet" data-action="end-session" ${state.busy || rec ? 'disabled' : ''}>结束这次访谈</button>
       </div>
       ${questionBlock}
+      ${thumbs(state.pendingPhotos, true)}
       <div class="rec">
         <div class="mic-col">
           <button class="mic ${rec ? 'recording' : ''}" data-action="toggle-mic" aria-pressed="${rec}">
@@ -211,6 +236,7 @@ function logItem(t) {
   return `<article class="log-item ${t.free ? 'is-free' : ''}">
     <div class="log-q">${t.free ? '姥姥主动讲的' : h(t.question)}</div>
     <p class="log-a">${h(t.text)}</p>
+    ${thumbs(t.photoIds)}
     <div class="log-tools">
       ${t.audioIds?.length ? `<button class="link" data-action="play" data-audio="${t.audioIds.join(',')}">${icon('play', 16)}听原声</button>` : ''}
       <button class="link" data-action="edit" data-id="${t.id}">${icon('edit', 16)}改文字</button>
@@ -276,19 +302,31 @@ function eraAside(stage) {
 }
 
 // ---------- timeline ----------
+function tlForm(e = {}) {
+  return `<div class="tl-form">
+    <div class="field"><label for="tl-year">年份</label><input id="tl-year" type="number" min="1900" max="2100" value="${h(e.year ?? '')}" placeholder="比如 1966"></div>
+    <div class="field"><label for="tl-place">地点</label><input id="tl-place" value="${h(e.place ?? '')}" placeholder="可不填"></div>
+    <div class="field wide"><label for="tl-event">发生了什么</label><textarea id="tl-event" rows="2">${h(e.event ?? '')}</textarea></div>
+    <div class="field wide"><label for="tl-people">人物（用顿号隔开，可不填）</label><input id="tl-people" value="${h((e.people || []).join('、'))}"></div>
+    <div class="actions"><button class="btn-primary small" data-action="tl-save" data-id="${h(e.id ?? '')}">保存</button><button class="pill quiet" data-action="tl-cancel">取消</button></div>
+  </div>`;
+}
+
 function viewTimeline() {
+  const addBtn = state.tlEditing === 'new' ? tlForm() : `<button class="pill" data-action="tl-new">${icon('plus')}添加一条</button>`;
   if (!state.timeline.length) {
     return `<div class="page narrow"><h1 class="display">人生时间线</h1><p class="lede">${hasAI()
-      ? '每次「结束这次访谈」时，AI 会把姥姥讲到的事按年份整理到这里。'
-      : '填上 Claude 密钥后，每次结束访谈 AI 会把姥姥讲到的事按年份整理到这里。没有密钥时，原话都在「回忆录」里按阶段排好。'}</p></div>`;
+      ? '每次「结束这次访谈」时，AI 会把姥姥讲到的事按年份整理到这里。也可以自己添加。'
+      : '可以自己添加家里知道的事。填上 Claude 密钥后，每次结束访谈 AI 也会把姥姥讲到的事整理到这里。'}</p>${addBtn}</div>`;
   }
   const sorted = [...state.timeline].sort((a, b) => (a.year ?? 9999) - (b.year ?? 9999));
   const groups = {};
   for (const e of sorted) (groups[e.year ? `${Math.floor(e.year / 10) * 10} 年代` : '年份不详'] ??= []).push(e);
   return `<div class="page narrow">
     <h1 class="display">${h(state.profile.name)}的人生时间线</h1>
-    <p class="lede">AI 从访谈里整理的，每条都能点「原话」核对，整理错了可以删掉。</p>
-    ${Object.entries(groups).map(([dec, items]) => `<section class="decade"><h2>${dec}</h2>${items.map((e) => `
+    <p class="lede">AI 从访谈里整理的条目都能点「原话」核对；整理错了可以修改或删掉，家里知道的事也可以自己添加。</p>
+    <div class="tl-add">${addBtn}</div>
+    ${Object.entries(groups).map(([dec, items]) => `<section class="decade"><h2>${dec}</h2>${items.map((e) => state.tlEditing === e.id ? tlForm(e) : `
       <div class="tl-item">
         <div class="tl-when">${e.year ?? '—'}<small>${e.age != null ? `${e.age} 岁` : ''}${e.place ? ` · ${h(e.place)}` : ''}</small></div>
         <div class="tl-what">${h(e.event)}${e.people?.length ? `<small>人物：${h(e.people.join('、'))}</small>` : ''}
@@ -297,7 +335,8 @@ function viewTimeline() {
             return t ? `<div class="src"><small>${t.free ? '姥姥主动讲的' : h(t.question)}</small>${h(t.text)}${t.audioIds?.length ? ` <button class="link" data-action="play" data-audio="${t.audioIds.join(',')}">${icon('play', 16)}听</button>` : ''}</div>` : '';
           }).join('') : ''}
         </div>
-        <div class="tl-tools"><button class="link" data-action="tl-src" data-id="${e.id}">${state.openTimelineSrc === e.id ? '收起' : '原话'}</button>
+        <div class="tl-tools">${e.turnIds?.length ? `<button class="link" data-action="tl-src" data-id="${e.id}">${state.openTimelineSrc === e.id ? '收起' : '原话'}</button>` : '<span class="hint">家人添加</span>'}
+          <button class="link" data-action="tl-edit" data-id="${e.id}">修改</button>
           <button class="link danger" data-action="tl-del" data-id="${e.id}">删除</button></div>
       </div>`).join('')}</section>`).join('')}
   </div>`;
@@ -321,14 +360,14 @@ function viewBook() {
       <div class="pills"><button class="pill" data-action="print">${icon('print')}打印 / 存成 PDF</button><button class="pill" data-action="download-md">${icon('download')}下载文字版</button></div>
     </div>
     <p class="lede no-print">${hasAI()
-      ? '每一章由 AI 用姥姥的口吻整理她的原话，不添加她没说过的事。点任意一段，能看到它出自哪几段原话、听原声。底色发黄的段落没找到出处，请核对。'
-      : '现在每章按原话一问一答排好，可以直接打印。填上 Claude 密钥后，可以让 AI 用姥姥的口吻写成连贯的文章。'}</p>
+      ? '每一章由 AI 用姥姥的口吻整理她的原话，不添加她没说过的事。点任意一段，能看出处、听原声、修改，或者标成「不印」。底色发黄的段落没找到出处，请核对。'
+      : '现在每章按原话一问一答排好，可以直接打印。点任意一段可以修改，或者标成「不印」。填上 Claude 密钥后，可以让 AI 用姥姥的口吻写成连贯的文章。'}</p>
     ${unsorted.length ? `<section class="unsorted no-print"><h2>待归类的回忆 · ${unsorted.length}</h2><p class="era-note">姥姥主动讲的事，选一下属于哪个阶段，就会排进对应的章节。</p>
-      ${unsorted.map((t) => `<article class="log-item is-free"><p class="log-a">${h(t.text)}</p><div class="log-tools">${t.audioIds?.length ? `<button class="link" data-action="play" data-audio="${t.audioIds.join(',')}">${icon('play', 16)}听原声</button>` : ''}${stageSelect(t)}</div></article>`).join('')}
+      ${unsorted.map((t) => `<article class="log-item is-free"><p class="log-a">${h(t.text)}</p>${thumbs(t.photoIds)}<div class="log-tools">${t.audioIds?.length ? `<button class="link" data-action="play" data-audio="${t.audioIds.join(',')}">${icon('play', 16)}听原声</button>` : ''}${stageSelect(t)}</div></article>`).join('')}
     </section>` : ''}
     ${state.stages.map(chapterBlock).join('')}
     ${unsorted.length ? `<section class="chapter print-only"><div class="chapter-head"><h2>其他回忆</h2></div>
-      <div class="prose raw">${unsorted.map((t) => `<div class="qa"><p>${h(t.text)}</p></div>`).join('')}</div></section>` : ''}
+      <div class="prose raw">${unsorted.filter((t) => !t.noprint).map((t) => `<div class="qa"><p>${h(t.text)}</p>${figures(t.photoIds)}</div>`).join('')}</div></section>` : ''}
   </div>`;
 }
 
@@ -342,8 +381,31 @@ function chapterBlock(stage) {
   const era = eventsForStage(state.events, stage, state.profile.birthDate).slice(0, 8);
   let body;
   if (streaming != null) body = `<div class="streaming">${h(streaming.replace(/\[\[[^\]]*\]\]/g, ''))}</div>`;
-  else if (ch) body = ch.paragraphs.map((p, i) => `<p class="${p.ids.length ? '' : 'uncited'}" data-action="toggle-src" data-key="${stage.id}:${i}" tabindex="0">${h(p.text)}</p>${state.openSources === `${stage.id}:${i}` ? sourcesBox(p.ids) : ''}`).join('');
-  else body = answers.map((a) => `<div class="qa">${a.free ? '' : `<p class="qa-q">${h(a.question)}</p>`}<p>${h(a.text)}</p></div>`).join('');
+  else if (ch) {
+    const shown = new Set();
+    body = ch.paragraphs.map((p, i) => {
+      const key = `${stage.id}:${i}`;
+      // Photos from the answers this paragraph draws on, each shown once per chapter.
+      const pics = p.ids.flatMap((id) => state.turns.find((t) => t.id === id)?.photoIds || []).filter((x) => !shown.has(x) && shown.add(x));
+      if (state.editingPara === key) {
+        return `<div class="para-edit no-print"><textarea class="well small" id="para-${key}">${h(p.text)}</textarea>
+          <div class="actions"><button class="btn-primary small" data-action="para-save" data-key="${key}">保存这段</button><button class="pill quiet" data-action="para-cancel">取消</button></div></div>`;
+      }
+      return `<p class="${p.ids.length ? '' : 'uncited'} ${p.noprint ? 'noprint' : ''}" data-action="toggle-src" data-key="${key}" tabindex="0">${h(p.text)}</p>`
+        + (state.openSources === key ? `<div class="para-tools no-print"><button class="link" data-action="para-edit" data-key="${key}">${icon('edit', 16)}改这段</button><button class="link" data-action="para-noprint" data-key="${key}">${p.noprint ? '恢复打印' : '这段不印'}</button></div>${sourcesBox(p.ids)}` : '')
+        + (p.noprint ? '' : figures(pics));
+    }).join('');
+  } else {
+    body = answers.map((a) => {
+      const key = `${stage.id}:a:${a.id}`;
+      if (state.editing === a.id) {
+        return `<div class="para-edit no-print"><textarea class="well small" id="edit-${a.id}">${h(a.text)}</textarea>
+          <div class="actions"><button class="btn-primary small" data-action="save-edit" data-id="${a.id}">保存修改</button><button class="pill quiet" data-action="cancel-edit">取消</button></div></div>`;
+      }
+      return `<div class="qa ${a.noprint ? 'noprint' : ''}" data-action="toggle-src" data-key="${key}" tabindex="0">${a.free ? '' : `<p class="qa-q">${h(a.question)}</p>`}<p>${h(a.text)}</p>${figures(a.photoIds)}</div>`
+        + (state.openSources === key ? `<div class="para-tools no-print"><button class="link" data-action="edit" data-id="${a.id}">${icon('edit', 16)}改文字</button><button class="link" data-action="answer-noprint" data-id="${a.id}">${a.noprint ? '恢复打印' : '这段不印'}</button>${a.audioIds?.length ? `<button class="link" data-action="play" data-audio="${a.audioIds.join(',')}">${icon('play', 16)}听原声</button>` : ''}</div>` : '');
+    }).join('');
+  }
   return `<section class="chapter">
     <div class="chapter-head"><h2>${h(stage.title)}</h2>
       <div class="chapter-tools no-print"><span class="hint">${answers.length} 段原话${newer ? ' · 有新内容' : ''}</span>
@@ -393,7 +455,7 @@ function viewSettings() {
       </section>
       <section class="panel">
         <h2>备份</h2>
-        <p>所有内容只存在这台电脑的浏览器里。清理浏览器数据或换电脑会丢，所以要常备份，并把备份文件发给家人存一份。每次结束访谈会自动下载一份文字备份。</p>
+        <p>所有内容存在这台电脑的浏览器里。清理浏览器数据或换电脑会丢，所以要常备份，并把备份文件发给家人存一份。每次结束访谈会自动下载一份文字备份。${state.asrStatus ? `装了本机精修时，每段录音和每次的备份还会另存一份普通文件在「${h(state.asrStatus.archive || '~/姥姥的回忆录')}」。` : ''}</p>
         <div class="stack">
           <button class="pill" data-action="quick-backup">${icon('download')}文字备份（.json，很小）</button>
           <button class="pill" data-action="full-backup">${icon('download')}完整备份含录音（.zip）</button>
@@ -501,6 +563,54 @@ const actions = {
     for (const t of todo) if (await refineTurn(t)) done++;
     toast(`精修完成 ${done} / ${todo.length} 段。`);
   },
+  'drop-photo': async (el) => {
+    state.pendingPhotos = state.pendingPhotos.filter((x) => x !== el.dataset.id);
+    await db.setKV('pendingPhotos', state.pendingPhotos);
+    render();
+  },
+  'para-edit': (el) => { state.editingPara = el.dataset.key; render(); },
+  'para-cancel': () => { state.editingPara = null; render(); },
+  'para-save': async (el) => {
+    const [stage, i] = el.dataset.key.split(':');
+    const ch = state.chapters.find((c) => c.stage === stage);
+    ch.paragraphs[i] = { ...ch.paragraphs[i], text: document.getElementById(`para-${el.dataset.key}`).value.trim(), edited: true };
+    await db.put('chapters', ch);
+    state.editingPara = null;
+    render();
+  },
+  'para-noprint': async (el) => {
+    const [stage, i] = el.dataset.key.split(':');
+    const ch = state.chapters.find((c) => c.stage === stage);
+    ch.paragraphs[i].noprint = !ch.paragraphs[i].noprint;
+    await db.put('chapters', ch);
+    render();
+  },
+  'answer-noprint': async (el) => {
+    const t = state.turns.find((x) => x.id === el.dataset.id);
+    t.noprint = !t.noprint;
+    await db.put('turns', t);
+    render();
+  },
+  'tl-new': () => { state.tlEditing = 'new'; render(); },
+  'tl-edit': (el) => { state.tlEditing = el.dataset.id; render(); },
+  'tl-cancel': () => { state.tlEditing = null; render(); },
+  'tl-save': async (el) => {
+    const year = Number(document.getElementById('tl-year').value) || null;
+    const event = document.getElementById('tl-event').value.trim();
+    if (!event) return toast('请写一下发生了什么。', true);
+    const old = state.timeline.find((e) => e.id === el.dataset.id);
+    const by = birthYear(state.profile);
+    const item = {
+      ...(old || { id: `t_${cryptoId()}`, turnIds: [], manual: true }),
+      year, age: year && by ? year - by : null, event,
+      place: document.getElementById('tl-place').value.trim() || null,
+      people: document.getElementById('tl-people').value.split(/[、,，\s]+/).map((x) => x.trim()).filter(Boolean),
+    };
+    await db.put('timeline', item);
+    state.timeline = [...state.timeline.filter((e) => e.id !== item.id), item];
+    state.tlEditing = null;
+    render();
+  },
   'cancel-free': () => { state.free = false; setQuestion(state.returnQuestion || state.question); render(); },
   'toggle-mic': () => (state.voice ? stopMic() : startMic()),
   'clear-draft': () => { state.draft = ''; state.interim = ''; render(); },
@@ -574,10 +684,10 @@ function bankQuestion(stage, current) {
     || '这个阶段的题库问完了。可以换一个人生阶段，或者让姥姥想到什么说什么。';
 }
 
-async function askNext(avoidQuestion) {
+async function askNext(avoidQuestion, photo) {
   const stage = stageById(state.session.stage);
   const prev = state.question;
-  if (!hasAI()) { setQuestion(bankQuestion(stage, prev)); render(); return; }
+  if (!hasAI()) { setQuestion(photo ? PHOTO_QUESTION : bankQuestion(stage, prev)); render(); return; }
   state.questionBusy = true;
   state.question = '';
   render();
@@ -593,7 +703,7 @@ async function askNext(avoidQuestion) {
     }, (text) => {
       const el = document.getElementById('question');
       if (el) el.textContent = text;
-    });
+    }, photo);
     setQuestion(q || bankQuestion(stage, prev));
   } catch (e) {
     toast(`${ai.explain(e)} 先按题库问。`, true);
@@ -664,15 +774,43 @@ function saveDraftSoon(delay = 800) {
 
 async function saveClip(clip) {
   const id = `r_${cryptoId()}`;
-  await db.put('audio', { id, ...clip });
+  await db.put('audio', { id, ...clip, recordedAt: Date.now() });
   state.pendingClips.push(id);
   await db.setKV('pendingClips', state.pendingClips);
   refineClip(id).catch(() => {}); // start early so it's ready by the time the answer is saved
+  archiveClip(id);
+}
+
+const EXT = { 'audio/webm': 'webm', 'audio/mp4': 'm4a', 'audio/ogg': 'ogg' };
+/** Local time as 2026-11-10-09-05-30, matching the dated folders the service creates. */
+const localStamp = (t = Date.now()) => { const d = new Date(t); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}-${p(d.getHours())}-${p(d.getMinutes())}-${p(d.getSeconds())}`; };
+/** Copy one clip to ~/姥姥的回忆录/录音/ through the local service; remembered so it's done once. */
+async function archiveClip(id) {
+  if (!state.asrStatus) return false;
+  try {
+    const a = await db.get('audio', id);
+    if (!a || a.archived) return true;
+    await asr.archive(a.blob, 'audio', `${localStamp(a.recordedAt)}_${id}.${EXT[String(a.mime).split(';')[0]] || 'webm'}`);
+    a.archived = true;
+    await db.put('audio', a);
+    return true;
+  } catch { return false; }
+}
+
+let catchingUp = false;
+/** Clips recorded while the service was off get copied once it's back. */
+async function archiveBacklog() {
+  if (catchingUp || !state.asrStatus) return;
+  catchingUp = true;
+  try {
+    for (const a of await db.all('audio')) if (!a.archived && !(await archiveClip(a.id))) break;
+  } finally { catchingUp = false; }
 }
 
 async function checkASR() {
   const before = !!state.asrStatus?.ready;
   state.asrStatus = await asr.status();
+  archiveBacklog();
   if (before !== !!state.asrStatus?.ready && !isTyping()) render();
 }
 
@@ -719,7 +857,7 @@ async function saveAnswerOnly() {
   const box = document.getElementById('answer-box');
   if (box) state.draft = box.value;
   const text = state.draft.trim();
-  if (!text && !state.pendingClips.length) return null;
+  if (!text && !state.pendingClips.length && !state.pendingPhotos.length) return null;
 
   const audioIds = [...state.pendingClips];
   state.pendingClips = [];
@@ -731,7 +869,10 @@ async function saveAnswerOnly() {
     stage: free ? UNSORTED : state.session.stage,
     question: free ? FREE_QUESTION : state.question,
     text: text || '（只有录音，文字待补）', ts: Date.now(), audioIds, free,
+    photoIds: [...state.pendingPhotos],
   };
+  state.pendingPhotos = [];
+  await db.setKV('pendingPhotos', []);
   turn.draft = turn.text;
   await db.put('turns', turn);
   state.turns.push(turn);
@@ -801,6 +942,10 @@ async function endSession() {
   await db.setKV('currentQuestion', '');
   if (sessionAnswers.length) {
     await downloadQuickBackup();
+    if (state.asrStatus) {
+      collect().then((d) => asr.archive(new Blob([JSON.stringify(d, null, 1)], { type: 'application/json' }), 'backup',
+        `backup-${localStamp()}.json`)).catch(() => {});
+    }
     toast(`这次记下 ${sessionAnswers.length} 段${hasAI() ? `，时间线新增 ${added} 条` : ''}。备份已自动下载。`);
   }
   render();
@@ -889,6 +1034,25 @@ document.addEventListener('click', (e) => {
 });
 
 document.addEventListener('change', async (e) => {
+  if (e.target.id === 'photo-input' && e.target.files.length) {
+    const files = [...e.target.files];
+    e.target.value = '';
+    let last = null;
+    for (const f of files) {
+      try {
+        const { blob, w, h } = await photos.shrink(f);
+        const id = `p_${cryptoId()}`;
+        await db.put('photos', { id, blob, w, h, ts: Date.now(), name: f.name });
+        state.pendingPhotos.push(id);
+        last = blob;
+        if (state.asrStatus) asr.archive(blob, 'photo', `${localStamp()}_${id}.jpg`).catch(() => {});
+      } catch { toast(`这张照片打不开：${f.name}`, true); }
+    }
+    await db.setKV('pendingPhotos', state.pendingPhotos);
+    render();
+    if (last && state.session) await askNext(undefined, hasAI() ? await photos.toBase64(last) : true);
+    return;
+  }
   const assign = e.target.closest?.('[data-assign]');
   if (assign) {
     const t = state.turns.find((x) => x.id === assign.dataset.assign);

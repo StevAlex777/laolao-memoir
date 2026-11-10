@@ -6,10 +6,15 @@ answers the memoir app's own pages. Audio never leaves the computer.
   GET  /health      -> {"ok": true, "ready": bool, "model": "..."}
   POST /transcribe  -> body: 16 kHz mono WAV bytes; returns {"text": "..."}
                        optional header X-Context: URL-encoded hint words (names, places)
+  POST /archive?kind=audio|backup|photo&name=FILE
+                    -> writes a second copy under ~/姥姥的回忆录/ (录音/<date>/, 备份/, 照片/)
 """
+import datetime
 import json
 import os
+import re
 import urllib.parse
+from pathlib import Path
 import tempfile
 import threading
 import time
@@ -19,6 +24,9 @@ HOST, PORT = "127.0.0.1", int(os.environ.get("LAOLAO_ASR_PORT", "8765"))
 MODEL = os.environ.get("LAOLAO_ASR_MODEL", "Qwen/Qwen3-ASR-0.6B")
 LANGUAGE = os.environ.get("LAOLAO_ASR_LANGUAGE", "Chinese")
 MAX_BYTES = 40 * 1024 * 1024  # ~20 minutes of 16 kHz mono WAV per request
+# Plain folder in the home directory (not Documents, which macOS guards from background apps).
+ARCHIVE_DIR = Path(os.environ.get("LAOLAO_ARCHIVE_DIR", str(Path.home() / "姥姥的回忆录")))
+SAFE_NAME = re.compile(r"^[A-Za-z0-9_.-]{1,80}$")
 
 # Pages allowed to use this service (the published app and local testing).
 ALLOWED_ORIGINS = {
@@ -79,9 +87,31 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(404, {"error": "not found"})
         if not self._origin_ok():
             return self._json(403, {"error": "origin not allowed"})
-        self._json(200, {"ok": True, "ready": _ready.is_set(), "model": MODEL})
+        self._json(200, {"ok": True, "ready": _ready.is_set(), "model": MODEL, "archive": str(ARCHIVE_DIR)})
+
+    def _archive(self):
+        q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+        kind, name = (q.get("kind") or [""])[0], (q.get("name") or [""])[0]
+        if kind not in ("audio", "backup", "photo") or not SAFE_NAME.match(name) or name.startswith("."):
+            return self._json(400, {"error": "bad kind or name"})
+        length = int(self.headers.get("Content-Length") or 0)
+        if not 0 < length <= 200 * 1024 * 1024:
+            return self._json(413, {"error": "empty or too large"})
+        data = self.rfile.read(length)
+        sub = {"audio": Path("录音") / datetime.date.today().isoformat(), "backup": Path("备份"), "photo": Path("照片")}[kind]
+        folder = ARCHIVE_DIR / sub
+        folder.mkdir(parents=True, exist_ok=True)
+        target = folder / name
+        tmp = target.with_suffix(target.suffix + ".part")
+        tmp.write_bytes(data)
+        tmp.replace(target)  # never leave a half-written file under the real name
+        return self._json(200, {"saved": str(target)})
 
     def do_POST(self):
+        if self.path.startswith("/archive"):
+            if not self._origin_ok():
+                return self._json(403, {"error": "origin not allowed"})
+            return self._archive()
         if self.path != "/transcribe":
             return self._json(404, {"error": "not found"})
         if not self._origin_ok():

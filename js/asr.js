@@ -47,3 +47,15 @@ export async function transcribe(blob, context = '') {
   if (!r.ok) throw new Error(`本机精修出错（${r.status}）`);
   return (await r.json()).text || '';
 }
+
+/** Second copy on disk via the local service (~/姥姥的回忆录/). kind: 'audio' | 'backup' | 'photo'. */
+export async function archive(blob, kind, name) {
+  const r = await fetch(`${URL_BASE}/archive?kind=${kind}&name=${encodeURIComponent(name)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/octet-stream' },
+    body: blob,
+    signal: AbortSignal.timeout(60_000),
+  });
+  if (!r.ok) throw new Error(`存档失败（${r.status}）`);
+  return (await r.json()).saved;
+}

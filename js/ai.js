@@ -1,12 +1,11 @@
-// All Claude calls. Uses the official Anthropic SDK in the browser; the key is pasted
-// into Settings and stored only in this browser (localStorage).
-import Anthropic from 'https://cdn.jsdelivr.net/npm/@anthropic-ai/sdk@1.3.0/+esm';
+// All Claude calls. Uses the official Anthropic SDK (bundled into vendor/, loaded only when
+// an AI feature is used); the key is pasted into Settings and stored only in this browser.
 import {
   INTERVIEWER_SYSTEM, interviewUserMessage,
   EXTRACT_SYSTEM, EXTRACT_TOOL,
   CUES_SYSTEM, CUES_TOOL, cuesUserMessage, validateCues,
   CHAPTER_SYSTEM, chapterUserMessage,
-  CLASSIFY_SYSTEM, classifyTool, classifyUserMessage,
+  CLASSIFY_SYSTEM, classifyTool, classifyUserMessage, PHOTO_NOTE,
 } from './core.js';
 
 export const MODEL = 'claude-opus-5-5';
@@ -23,10 +22,20 @@ export function setKey(k) {
   try { k ? localStorage.setItem(KEY_STORAGE, k.trim()) : localStorage.removeItem(KEY_STORAGE); } catch { /* ignore */ }
 }
 
-function client() {
+let Anthropic = null;
+async function sdk() {
+  if (!Anthropic) {
+    try { Anthropic = (await import('../vendor/anthropic-sdk-1.3.0.mjs')).default; }
+    catch { throw new FriendlyError('AI 组件没加载上，请刷新页面再试。'); }
+  }
+  return Anthropic;
+}
+
+async function client() {
   const apiKey = getKey();
   if (!apiKey) throw new FriendlyError('还没有填写 Claude 密钥。请到「设置」里粘贴密钥。');
-  return new Anthropic({ apiKey, dangerouslyAllowBrowser: true, maxRetries: 3 });
+  const A = await sdk();
+  return new A({ apiKey, dangerouslyAllowBrowser: true, maxRetries: 3 });
 }
 
 export class FriendlyError extends Error {}
@@ -34,6 +43,7 @@ export class FriendlyError extends Error {}
 /** Turn SDK errors into a sentence a non-programmer can act on. */
 export function explain(err) {
   if (err instanceof FriendlyError) return err.message;
+  if (!Anthropic) return `出错了：${err?.message || err}`;
   if (err instanceof Anthropic.AuthenticationError) return '密钥不对或已失效。请到「设置」重新粘贴密钥。';
   if (err instanceof Anthropic.PermissionDeniedError) return '这个密钥没有权限使用该模型，或当前地区无法使用 Claude。';
   if (err instanceof Anthropic.RateLimitError) return '请求太频繁了，等一分钟再试。';
@@ -50,18 +60,20 @@ function refusalCheck(msg) {
 
 /** Check that the key works (cheap: model metadata lookup, no tokens billed). */
 export async function testKey() {
-  await client().models.retrieve(MODEL);
+  await (await client()).models.retrieve(MODEL);
 }
 
-/** Stream the interviewer's next line. onDelta gets the text so far. */
-export async function nextQuestion(ctx, onDelta) {
-  const stream = client().beta.messages.stream({
+/** Stream the interviewer's next line. onDelta gets the text so far. photo: base64 JPEG to ask about. */
+export async function nextQuestion(ctx, onDelta, photo) {
+  const stream = (await client()).beta.messages.stream({
     model: MODEL,
     max_tokens: 4000,
     ...FALLBACK,
     output_config: { effort: 'low' },
     system: [{ type: 'text', text: INTERVIEWER_SYSTEM, cache_control: { type: 'ephemeral' } }],
-    messages: [{ role: 'user', content: interviewUserMessage(ctx) }],
+    messages: [{ role: 'user', content: photo
+      ? [{ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: photo } }, { type: 'text', text: interviewUserMessage(ctx) + PHOTO_NOTE }]
+      : interviewUserMessage(ctx) }],
   });
   let text = '';
   for await (const ev of stream) {
@@ -79,7 +91,7 @@ export async function nextQuestion(ctx, onDelta) {
 export async function extractEvents({ profileText, turnsText }) {
   // tool_choice "auto" doesn't guarantee a call on this model, so check and retry once.
   for (let attempt = 0; attempt < 2; attempt++) {
-    const msg = await client().beta.messages.create({
+    const msg = await (await client()).beta.messages.create({
       model: MODEL,
       max_tokens: 16000,
       ...FALLBACK,
@@ -100,7 +112,7 @@ export async function extractEvents({ profileText, turnsText }) {
 export async function classifyMemory({ profile, stages, text }) {
   const tool = classifyTool(stages);
   for (let attempt = 0; attempt < 2; attempt++) {
-    const msg = await client().beta.messages.create({
+    const msg = await (await client()).beta.messages.create({
       model: MODEL,
       max_tokens: 4000,
       ...FALLBACK,
@@ -119,7 +131,7 @@ export async function classifyMemory({ profile, stages, text }) {
 
 /** Search the web for era cues; only cues whose source URL came back from the search are kept. */
 export async function findCues(ctx) {
-  const c = client();
+  const c = await client();
   const messages = [{ role: 'user', content: cuesUserMessage(ctx) }];
   const urls = new Set();
   let msg;
@@ -150,7 +162,7 @@ export async function findCues(ctx) {
 
 /** Stream a chapter in her voice with [[answer-id]] citations per paragraph. */
 export async function writeChapter(ctx, onDelta) {
-  const stream = client().beta.messages.stream({
+  const stream = (await client()).beta.messages.stream({
     model: MODEL,
     max_tokens: 64000,
     ...FALLBACK,

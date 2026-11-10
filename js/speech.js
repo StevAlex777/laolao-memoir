@@ -47,7 +47,7 @@ export class VoiceCapture {
 
   #startClip() {
     const mimeType = pickMime();
-    const rec = new MediaRecorder(this.stream, { ...(mimeType && { mimeType }), audioBitsPerSecond: 32000 });
+    const rec = new MediaRecorder(this.stream, { ...(mimeType && { mimeType }), audioBitsPerSecond: 64000 });
     const chunks = [];
     const startedAt = Date.now();
     rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
