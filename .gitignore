@@ -11,3 +11,4 @@ PRODUCT.md
 .impeccable/hook.cache.json
 .impeccable/config.local.json
 .DS_Store
+__pycache__/
