@@ -1,7 +1,9 @@
-// Voice input: browser speech recognition (zh-CN) + a raw recording of her voice.
-// The recording never leaves this computer; only the recognized text is sent to Claude.
+// Voice input: browser speech recognition (zh-CN) as a live draft, plus a recording of her voice.
+// The recording is cut into ~1-minute clips; each clip is handed over (and saved) the moment it
+// ends, so a crash or closed tab loses at most the last minute. Clips stay on this computer.
 
 const Recognition = globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition;
+export const CLIP_MS = 60_000;
 
 export const speechSupport = {
   recognition: !!Recognition,
@@ -16,7 +18,7 @@ function pickMime() {
 }
 
 export class VoiceCapture {
-  /** @param {{onText:(finalText:string, interim:string)=>void, onError:(msg:string)=>void}} cb */
+  /** @param {{onText:(finalText:string, interim:string)=>void, onError:(msg:string)=>void, onClip:(clip:{blob:Blob,mime:string,durationMs:number})=>void}} cb */
   constructor(cb) {
     this.cb = cb;
     this.active = false;
@@ -26,16 +28,9 @@ export class VoiceCapture {
   async start(initialText = '') {
     this.finalText = initialText || '';
     this.active = true;
-    this.chunks = [];
-    this.startedAt = Date.now();
-
     if (speechSupport.recording) {
       try {
         this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
-        const mimeType = pickMime();
-        this.recorder = new MediaRecorder(this.stream, { ...(mimeType && { mimeType }), audioBitsPerSecond: 32000 });
-        this.recorder.ondataavailable = (e) => e.data.size && this.chunks.push(e.data);
-        this.recorder.start(1000);
       } catch (e) {
         this.active = false;
         this.cb.onError(e.name === 'NotAllowedError'
@@ -43,10 +38,37 @@ export class VoiceCapture {
           : `打不开麦克风：${e.message}`);
         return false;
       }
+      this.#startClip();
+      this.rotator = setInterval(() => this.#rotate(), CLIP_MS);
     }
-
     if (speechSupport.recognition) this.#startRecognition();
     return true;
+  }
+
+  #startClip() {
+    const mimeType = pickMime();
+    const rec = new MediaRecorder(this.stream, { ...(mimeType && { mimeType }), audioBitsPerSecond: 32000 });
+    const chunks = [];
+    const startedAt = Date.now();
+    rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+    rec.done = new Promise((resolve) => {
+      rec.onstop = () => {
+        const mime = rec.mimeType || 'audio/webm';
+        const blob = new Blob(chunks, { type: mime });
+        if (blob.size) this.cb.onClip({ blob, mime, durationMs: Date.now() - startedAt });
+        resolve();
+      };
+    });
+    rec.start(1000);
+    this.recorder = rec;
+  }
+
+  /** End the current clip and immediately begin the next one on the same microphone stream. */
+  #rotate() {
+    if (!this.active || !this.recorder) return;
+    const old = this.recorder;
+    this.#startClip();
+    old.stop();
   }
 
   #startRecognition() {
@@ -65,30 +87,27 @@ export class VoiceCapture {
     };
     r.onerror = (e) => {
       if (e.error === 'no-speech' || e.error === 'aborted') return;
-      if (e.error === 'not-allowed') this.cb.onError('浏览器不允许语音识别。录音仍在继续；文字可以手动输入，或在文本框里按两下 Fn 用 Mac 自带听写。');
-      else if (e.error === 'network') this.cb.onError('语音识别连不上网络服务。录音仍在继续，文字可以稍后手动补。');
+      if (e.error === 'not-allowed') this.cb.onError('浏览器不允许语音识别。录音仍在继续；文字可以手动输入，或在文本框里按两下 fn 用 Mac 自带听写。');
+      else if (e.error === 'network') this.cb.onError('语音识别连不上网络服务。录音仍在继续，文字之后可以用录音精修。');
       else this.cb.onError(`语音识别出错（${e.error}），录音仍在继续。`);
     };
-    // Chrome ends recognition after a pause; keep it going while we're recording.
-    r.onend = () => { if (this.active) { try { r.start(); } catch { /* already restarting */ } } };
+    // Chrome ends recognition after a pause or a few minutes; keep it going while recording,
+    // with a short delay so rapid restarts don't get throttled.
+    r.onend = () => { if (this.active) setTimeout(() => { if (this.active) { try { r.start(); } catch { /* restarting */ } } }, 250); };
     this.recognition = r;
     try { r.start(); } catch { /* ignore double start */ }
   }
 
-  /** @returns {Promise<{text:string, audio: null | {blob: Blob, mime: string, durationMs: number}}>} */
+  /** Pause: finish the current clip and stop listening. The draft text is kept by the caller. */
   async stop() {
     this.active = false;
+    clearInterval(this.rotator);
     try { this.recognition?.stop(); } catch { /* ignore */ }
-    let audio = null;
-    if (this.recorder && this.recorder.state !== 'inactive') {
-      await new Promise((resolve) => { this.recorder.onstop = resolve; this.recorder.stop(); });
-      const mime = this.recorder.mimeType || 'audio/webm';
-      const blob = new Blob(this.chunks, { type: mime });
-      if (blob.size) audio = { blob, mime, durationMs: Date.now() - this.startedAt };
-    }
+    const rec = this.recorder;
+    if (rec && rec.state !== 'inactive') { rec.stop(); await rec.done; }
     this.stream?.getTracks().forEach((t) => t.stop());
     this.recorder = this.recognition = this.stream = null;
-    return { text: this.finalText, audio };
+    return { text: this.finalText };
   }
 }
 

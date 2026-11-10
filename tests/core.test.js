@@ -124,3 +124,32 @@ test('no birth date yet: no year range and no era events, nothing crashes', () =
   assert.equal(yearRangeForStage(stage, ''), null);
   assert.deepEqual(eventsForStage(timeline.events, stage, ''), []);
 });
+
+import { encodeWav, asrContext, applyRefined } from '../js/core.js';
+
+test('encodeWav writes a valid 16 kHz mono PCM header and clamps samples', () => {
+  const wav = encodeWav(new Float32Array([0, 1, -1, 2]), 16000);
+  const v = new DataView(wav.buffer);
+  assert.equal(String.fromCharCode(...wav.slice(0, 4)), 'RIFF');
+  assert.equal(String.fromCharCode(...wav.slice(8, 12)), 'WAVE');
+  assert.equal(v.getUint32(24, true), 16000);
+  assert.equal(v.getUint16(22, true), 1);
+  assert.equal(v.getUint32(40, true), 8);
+  assert.equal(v.getInt16(46, true), 32767);
+  assert.equal(v.getInt16(48, true), -32768);
+  assert.equal(v.getInt16(50, true), 32767);
+});
+
+test('refined text replaces the draft only when the draft was not edited', () => {
+  const untouched = { text: '那几年怀化拌面', draft: '那几年怀化拌面' };
+  assert.equal(applyRefined(untouched, '那几年槐花拌面').text, '那几年槐花拌面');
+  const edited = { text: '那几年槐花拌面（她笑了）', draft: '那几年怀化拌面' };
+  const r = applyRefined(edited, '那几年槐花拌面');
+  assert.equal(r.text, '那几年槐花拌面（她笑了）');
+  assert.equal(r.refined, '那几年槐花拌面');
+});
+
+test('recognizer hints include her places and timeline names', () => {
+  const ctx = asrContext({ birthplace: '河北邯郸峰峰', places: '女儿住邯郸市区' }, [{ place: '彭城', people: ['王老师'] }]);
+  assert.match(ctx, /峰峰/); assert.match(ctx, /彭城/); assert.match(ctx, /王老师/);
+});

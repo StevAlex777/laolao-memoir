@@ -1,11 +1,12 @@
 import { db } from './db.js';
 import { VoiceCapture, speechSupport, speak } from './speech.js';
 import * as ai from './ai.js';
+import * as asr from './asr.js';
 import { downloadQuickBackup, downloadFullBackup, restore } from './backup.js';
 import {
   suggestStage, eventsForStage, yearRangeForStage, mergeTimeline, profileText,
   parseChapter, chapterMarkdown, daysSince, cryptoId, birthYear, nextBankQuestion,
-  UNSORTED, FREE_QUESTION, isLocal,
+  UNSORTED, FREE_QUESTION, isLocal, asrContext, applyRefined,
 } from './core.js';
 
 // Personal details are entered on first use and stay in this browser; nothing about her is in the code.
@@ -36,6 +37,8 @@ const state = {
   editing: null,
   chapterStream: {},
   micError: '',
+  asrStatus: null,  // local Qwen3-ASR service, or null when not installed/running
+  pendingClips: [], // audio ids recorded for the answer being composed (already saved to disk)
 };
 
 const $app = document.getElementById('app');
@@ -60,6 +63,7 @@ const ICONS = {
   back: '<path d="M10 6.5 4.5 12l5.5 5.5M5 12h14.5"/>',
   mic: '<rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5"/>',
   stop: '<rect x="6.5" y="6.5" width="11" height="11" rx="2"/>',
+  pause: '<path d="M9 6v12M15 6v12"/>',
   arrow: '<path d="M5 12h13.5M13 6.5 18.5 12 13 17.5"/>',
 };
 const icon = (name, size = 20) => `<svg class="ico" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
@@ -79,7 +83,13 @@ async function boot() {
   state.chapters = await db.all('chapters');
   const sessions = await db.all('sessions');
   state.session = sessions.find((s) => !s.endedAt) || null;
-  if (state.session) state.question = (await db.getKV('currentQuestion')) || stageById(state.session.stage).opening;
+  if (state.session) {
+    state.question = (await db.getKV('currentQuestion')) || stageById(state.session.stage).opening;
+    state.draft = (await db.getKV('draft')) || '';
+    state.pendingClips = (await db.getKV('pendingClips')) || [];
+  }
+  checkASR();
+  setInterval(checkASR, 30_000);
   db.persist();
   state.view = location.hash.slice(1) || 'interview';
   window.addEventListener('hashchange', () => go(location.hash.slice(1) || 'interview', false));
@@ -163,7 +173,7 @@ function viewInterview() {
       <div class="rec">
         <div class="mic-col">
           <button class="mic ${rec ? 'recording' : ''}" data-action="toggle-mic" aria-pressed="${rec}">
-            ${icon(rec ? 'stop' : 'mic', 34)}<span>${rec ? '停止' : '开始说'}</span>
+            ${icon(rec ? 'pause' : 'mic', 34)}<span>${rec ? '暂停' : state.draft.trim() || state.pendingClips.length ? '继续说' : '开始说'}</span>
           </button>
           <div class="mic-time" id="mic-time">${rec ? '0:00' : ''}</div>
         </div>
@@ -176,6 +186,7 @@ function viewInterview() {
             <button class="pill quiet" data-action="clear-draft" ${rec ? 'disabled' : ''}>清空</button>
             <span class="hint">⌘ + 回车 也能保存</span>
           </div>
+          ${state.asrStatus?.ready ? `<p class="hint mode-hint">本机精修已连接：保存后会用录音自动校正文字。</p>` : ''}
           ${!hasAI() && !state.free ? `<p class="hint mode-hint">现在按题库提问。在「设置」里填上 Claude 密钥，AI 就会接着姥姥的话追问。</p>` : ''}
         </div>
       </div>
@@ -203,6 +214,7 @@ function logItem(t) {
     <div class="log-tools">
       ${t.audioIds?.length ? `<button class="link" data-action="play" data-audio="${t.audioIds.join(',')}">${icon('play', 16)}听原声</button>` : ''}
       <button class="link" data-action="edit" data-id="${t.id}">${icon('edit', 16)}改文字</button>
+      ${t.refined && t.refined !== t.text ? `<button class="link" data-action="use-refined" data-id="${t.id}">改用精修稿</button>` : t.refined ? '<span class="hint">已精修</span>' : ''}
       ${t.free ? stageSelect(t) : ''}
     </div>
   </article>`;
@@ -374,6 +386,12 @@ function viewSettings() {
         <button class="btn-primary small" data-action="save-profile">保存</button>
       </section>
       <section class="panel">
+        <h2>本机语音精修</h2>
+        <p>${state.asrStatus?.ready ? `已连接（${h(String(state.asrStatus.model).replace('Qwen/', ''))}）。每段回答保存后，会用这台电脑上的开源 Qwen3-ASR 按录音重新识别，校正文字；录音不离开这台电脑。`
+          : state.asrStatus ? '服务已启动，模型正在加载，稍等一会儿。' : '未检测到。需要在这台电脑上运行一次「asr / 安装.command」。没有它也能用，只是文字以浏览器的实时识别为准。'}</p>
+        ${state.asrStatus?.ready ? '<button class="pill" data-action="refine-all">用录音精修以前的回答</button>' : '<button class="pill" data-action="check-asr">重新检测</button>'}
+      </section>
+      <section class="panel">
         <h2>备份</h2>
         <p>所有内容只存在这台电脑的浏览器里。清理浏览器数据或换电脑会丢，所以要常备份，并把备份文件发给家人存一份。每次结束访谈会自动下载一份文字备份。</p>
         <div class="stack">
@@ -401,6 +419,7 @@ function viewHelp() {
       <li>把问题读给姥姥听，或者点「读给姥姥听」。</li>
       <li>点深色的大按钮「开始说」，姥姥说完点「停止」。文字不对可以直接改。</li>
       <li>点「保存，问下一个」。问题不合适就点「换个问题」。</li>
+      <li>姥姥中途停下、有人打断：点「暂停」，回来点「继续说」，会接在同一段里。录音每分钟自动存一次，浏览器意外关掉也最多丢一分钟。</li>
       <li><b>姥姥突然想起别的事</b>：随时点「姥姥想起别的事」，让她尽管说。${'有密钥时 AI 会把它归到对应阶段并顺着往下问；没有密钥时先放进「待归类」，以后在「回忆录」里选一下阶段就行。'}</li>
       <li>右边「那一年」是姥姥那个年纪时发生的事，可以问她还记不记得。</li>
       <li>聊完点「结束这次访谈」，会<b>自动下载一份备份</b>。</li>
@@ -411,6 +430,7 @@ function viewHelp() {
       <li>姥姥说「不记得了」没关系，换个话题。老照片、老物件特别能勾起回忆。</li>
       <li>录音只存在这台电脑上，不会上传；发给 AI 的只有文字。</li>
       <li>每隔几天在「设置」里下载一份<b>完整备份（含录音）</b>，发给家人。</li>
+      <li>如果这台电脑装了「本机语音精修」，每段保存后会用录音重新识别、自动校正文字（「设置」里能看到是否已连接）。第一次 Chrome 可能会问「是否允许访问本地网络上的设备」，点允许。</li>
     </ul>
   </div>`;
 }
@@ -465,6 +485,21 @@ const actions = {
     };
     await db.setKV('profile', state.profile);
     render();
+  },
+  'use-refined': async (el) => {
+    const t = state.turns.find((x) => x.id === el.dataset.id);
+    t.text = t.refined;
+    await db.put('turns', t);
+    render();
+  },
+  'check-asr': async () => { await checkASR(); toast(state.asrStatus?.ready ? '本机精修已连接。' : '还是没检测到本机精修服务。'); },
+  'refine-all': async () => {
+    const todo = state.turns.filter((t) => t.audioIds?.length && t.refined == null);
+    if (!todo.length) return toast('以前的回答都已经精修过了。');
+    toast(`开始精修 ${todo.length} 段，可以继续用，完成后会提示。`);
+    let done = 0;
+    for (const t of todo) if (await refineTurn(t)) done++;
+    toast(`精修完成 ${done} / ${todo.length} 段。`);
   },
   'cancel-free': () => { state.free = false; setQuestion(state.returnQuestion || state.question); render(); },
   'toggle-mic': () => (state.voice ? stopMic() : startMic()),
@@ -584,7 +619,9 @@ async function startMic() {
       if (box) { box.value = finalText; box.scrollTop = box.scrollHeight; }
       const im = document.getElementById('interim');
       if (im) im.textContent = interim;
+      saveDraftSoon();
     },
+    onClip: (clip) => saveClip(clip),
     onError: (msg) => {
       state.micError = msg;
       const im = document.getElementById('interim');
@@ -607,32 +644,87 @@ async function startMic() {
   }, 500);
 }
 
-let pendingAudio = [];
 async function stopMic() {
   clearInterval(timer);
   const v = state.voice;
   state.voice = null;
-  const { text, audio } = await v.stop();
+  const { text } = await v.stop();
   if (text) state.draft = text;
   state.interim = '';
-  if (audio) pendingAudio.push(audio);
+  saveDraftSoon(0);
   render();
 }
 
-async function saveAnswer() {
+// ---------- crash-safe recording + local refinement ----------
+let draftTimer;
+function saveDraftSoon(delay = 800) {
+  clearTimeout(draftTimer);
+  draftTimer = setTimeout(() => db.setKV('draft', state.draft), delay);
+}
+
+async function saveClip(clip) {
+  const id = `r_${cryptoId()}`;
+  await db.put('audio', { id, ...clip });
+  state.pendingClips.push(id);
+  await db.setKV('pendingClips', state.pendingClips);
+  refineClip(id).catch(() => {}); // start early so it's ready by the time the answer is saved
+}
+
+async function checkASR() {
+  const before = !!state.asrStatus?.ready;
+  state.asrStatus = await asr.status();
+  if (before !== !!state.asrStatus?.ready && !isTyping()) render();
+}
+
+const isTyping = () => document.activeElement?.tagName === 'TEXTAREA' || document.activeElement?.tagName === 'INPUT';
+
+const refining = new Map();
+/** Refined text of one clip (cached on the clip), or null if the local service isn't available. */
+function refineClip(id) {
+  if (!state.asrStatus?.ready) return Promise.resolve(null);
+  if (!refining.has(id)) {
+    refining.set(id, (async () => {
+      const a = await db.get('audio', id);
+      if (!a) return null;
+      if (a.refined != null) return a.refined;
+      a.refined = await asr.transcribe(a.blob, asrContext(state.profile, state.timeline));
+      await db.put('audio', a);
+      return a.refined;
+    })().finally(() => refining.delete(id)));
+  }
+  return refining.get(id);
+}
+
+/** Re-recognize a saved answer from its recording; replaces the text only if it wasn't hand-edited. */
+async function refineTurn(turn) {
+  if (!turn.audioIds?.length || !state.asrStatus?.ready) return false;
+  try {
+    const parts = [];
+    for (const id of turn.audioIds) parts.push(await refineClip(id));
+    if (parts.some((p) => p == null)) return false;
+    const current = state.turns.find((t) => t.id === turn.id) || turn;
+    const updated = applyRefined({ ...current, draft: current.draft ?? current.text }, parts.join(''));
+    Object.assign(current, updated);
+    await db.put('turns', current);
+    if (!isTyping()) render();
+    return true;
+  } catch {
+    return false; // service hiccup: the draft stays; can be retried from Settings
+  }
+}
+
+/** Store what's in the box (and its recorded clips) as one answer. Returns the turn, or null if empty. */
+async function saveAnswerOnly() {
   if (state.voice) await stopMic();
   const box = document.getElementById('answer-box');
   if (box) state.draft = box.value;
   const text = state.draft.trim();
-  if (!text && !pendingAudio.length) return toast('还没有内容。先录音或者打字。', true);
+  if (!text && !state.pendingClips.length) return null;
 
-  const audioIds = [];
-  for (const a of pendingAudio) {
-    const id = `r_${cryptoId()}`;
-    await db.put('audio', { id, ...a });
-    audioIds.push(id);
-  }
-  pendingAudio = [];
+  const audioIds = [...state.pendingClips];
+  state.pendingClips = [];
+  await db.setKV('pendingClips', []);
+  await db.setKV('draft', '');
   const free = state.free;
   const turn = {
     id: `a_${cryptoId()}`, role: 'a', sessionId: state.session.id,
@@ -640,10 +732,19 @@ async function saveAnswer() {
     question: free ? FREE_QUESTION : state.question,
     text: text || '（只有录音，文字待补）', ts: Date.now(), audioIds, free,
   };
+  turn.draft = turn.text;
   await db.put('turns', turn);
   state.turns.push(turn);
   state.draft = '';
+  refineTurn(turn); // runs in the background; the interview continues
+  return turn;
+}
 
+async function saveAnswer() {
+  const free = state.free;
+  const turn = await saveAnswerOnly();
+  if (!turn) return toast('还没有内容。先录音或者打字。', true);
+  const text = turn.draft === '（只有录音，文字待补）' ? '' : turn.text;
   if (!free) return askNext();
 
   state.free = false;
@@ -671,8 +772,10 @@ async function saveAnswer() {
 }
 
 async function endSession() {
+  if ((state.draft.trim() || state.pendingClips.length) && confirm('还有没保存的这段话（录音已经存好了），先保存再结束吗？')) {
+    await saveAnswerOnly();
+  }
   const sessionAnswers = answersFor((t) => t.sessionId === state.session.id);
-  if (state.draft.trim() && !confirm('文本框里还有没保存的话，确定结束吗？')) return;
   let added = 0;
   if (sessionAnswers.length && hasAI()) {
     state.busy = '正在整理这次聊到的人生经历…';
