@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>姥姥的回忆录</title>
+  <meta name="description" content="陪姥姥聊聊她的一生，整理成回忆录。">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.7.0/lxgwwenkai-regular.css" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand" id="brand-name">姥姥的回忆录</div>
+    <nav class="tabs" aria-label="页面">
+      <button data-view="interview" class="tab">访谈</button>
+      <button data-view="timeline" class="tab">人生时间线</button>
+      <button data-view="book" class="tab">回忆录</button>
+      <button data-view="settings" class="tab">设置</button>
+      <button data-view="help" class="tab">使用说明</button>
+    </nav>
+    <button class="backup-pill" id="backup-pill" data-action="quick-backup" title="下载一份备份"></button>
+  </header>
+  <main id="app" tabindex="-1"></main>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

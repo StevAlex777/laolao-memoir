@@ -1,0 +1,26 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "index.html"
+        ],
+        "createdAt": "2026-11-10T00:17:41.366Z",
+        "reason": "Claude, per direction contract (.impeccable/surfaces/index-html.md FIRST VIEWPORT: iron rim header with an ochre underline band): the only hit is the full-width 6px header band, not a card side accent; rule has no per-value ignore"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "zcool xiaowei",
+        "files": [
+          ".impeccable/mocks/decision/*"
+        ],
+        "createdAt": "2026-11-10T00:29:05.300Z",
+        "reason": "Claude: archived decision-round sketch (the chosen card's pre-build thumbnail); the shipped build replaced ZCOOL XiaoWei with LXGW WenKai, recorded in DESIGN.md and the surface brief"
+      }
+    ]
+  }
+}

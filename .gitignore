@@ -1,0 +1,13 @@
+# Personal facts about 姥姥 stay on this machine
+PRODUCT.md
+# Editor/agent hook configs
+.codex/
+.cursor/
+.gemini/
+# Impeccable runtime artifacts (screenshots, sketches, caches)
+.impeccable/review/
+.impeccable/mocks/
+.impeccable/questions/
+.impeccable/hook.cache.json
+.impeccable/config.local.json
+.DS_Store

@@ -1,0 +1,396 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-09T00:00:00Z",
+  "title": "Design System: 姥姥的回忆录",
+  "extensions": {
+    "colorMeta": {
+      "slip": {
+        "role": "neutral",
+        "displayName": "Slip White",
+        "canonical": "oklch(96.1% 0.005 95)",
+        "tonalRamp": [
+          "oklch(15% 0.005 95)",
+          "oklch(26% 0.007 95)",
+          "oklch(38% 0.009 95)",
+          "oklch(49% 0.011 95)",
+          "oklch(61% 0.011 95)",
+          "oklch(72% 0.009 95)",
+          "oklch(84% 0.007 95)",
+          "oklch(95% 0.005 95)"
+        ]
+      },
+      "slip-hi": {
+        "role": "neutral",
+        "displayName": "Fresh Glaze",
+        "canonical": "oklch(98.5% 0.004 91)",
+        "tonalRamp": [
+          "oklch(15% 0.005 91)",
+          "oklch(26% 0.007 91)",
+          "oklch(38% 0.009 91)",
+          "oklch(49% 0.011 91)",
+          "oklch(61% 0.011 91)",
+          "oklch(72% 0.009 91)",
+          "oklch(84% 0.007 91)",
+          "oklch(95% 0.005 91)"
+        ]
+      },
+      "iron": {
+        "role": "neutral",
+        "displayName": "Iron Black",
+        "canonical": "oklch(24.5% 0.024 49)",
+        "tonalRamp": [
+          "oklch(15% 0.011 49)",
+          "oklch(26% 0.015 49)",
+          "oklch(38% 0.019 49)",
+          "oklch(49% 0.022 49)",
+          "oklch(61% 0.022 49)",
+          "oklch(72% 0.019 49)",
+          "oklch(84% 0.015 49)",
+          "oklch(95% 0.011 49)"
+        ]
+      },
+      "iron-soft": {
+        "role": "neutral",
+        "displayName": "Soft Iron",
+        "canonical": "oklch(39.8% 0.019 61)",
+        "tonalRamp": [
+          "oklch(15% 0.009 61)",
+          "oklch(26% 0.012 61)",
+          "oklch(38% 0.015 61)",
+          "oklch(49% 0.017 61)",
+          "oklch(61% 0.017 61)",
+          "oklch(72% 0.015 61)",
+          "oklch(84% 0.012 61)",
+          "oklch(95% 0.009 61)"
+        ]
+      },
+      "ochre": {
+        "role": "primary",
+        "displayName": "Fired Ochre",
+        "canonical": "oklch(53.4% 0.110 56)",
+        "tonalRamp": [
+          "oklch(15% 0.050 56)",
+          "oklch(26% 0.067 56)",
+          "oklch(38% 0.084 56)",
+          "oklch(49% 0.101 56)",
+          "oklch(61% 0.101 56)",
+          "oklch(72% 0.084 56)",
+          "oklch(84% 0.067 56)",
+          "oklch(95% 0.050 56)"
+        ]
+      },
+      "ochre-deep": {
+        "role": "primary",
+        "displayName": "Deep Ochre",
+        "canonical": "oklch(45.0% 0.096 55)",
+        "tonalRamp": [
+          "oklch(15% 0.044 55)",
+          "oklch(26% 0.058 55)",
+          "oklch(38% 0.073 55)",
+          "oklch(49% 0.088 55)",
+          "oklch(61% 0.088 55)",
+          "oklch(72% 0.073 55)",
+          "oklch(84% 0.058 55)",
+          "oklch(95% 0.044 55)"
+        ]
+      },
+      "ochre-wash": {
+        "role": "primary",
+        "displayName": "Ochre Wash",
+        "canonical": "oklch(92.0% 0.026 71)",
+        "tonalRamp": [
+          "oklch(15% 0.012 71)",
+          "oklch(26% 0.016 71)",
+          "oklch(38% 0.020 71)",
+          "oklch(49% 0.024 71)",
+          "oklch(61% 0.024 71)",
+          "oklch(72% 0.020 71)",
+          "oklch(84% 0.016 71)",
+          "oklch(95% 0.012 71)"
+        ]
+      },
+      "glaze": {
+        "role": "neutral",
+        "displayName": "Grey Glaze",
+        "canonical": "oklch(86.8% 0.018 85)",
+        "tonalRamp": [
+          "oklch(15% 0.008 85)",
+          "oklch(26% 0.011 85)",
+          "oklch(38% 0.013 85)",
+          "oklch(49% 0.016 85)",
+          "oklch(61% 0.016 85)",
+          "oklch(72% 0.013 85)",
+          "oklch(84% 0.011 85)",
+          "oklch(95% 0.008 85)"
+        ]
+      },
+      "glaze-ink": {
+        "role": "neutral",
+        "displayName": "Glaze Ink",
+        "canonical": "oklch(33.0% 0.019 57)",
+        "tonalRamp": [
+          "oklch(15% 0.009 57)",
+          "oklch(26% 0.011 57)",
+          "oklch(38% 0.014 57)",
+          "oklch(49% 0.017 57)",
+          "oklch(61% 0.017 57)",
+          "oklch(72% 0.014 57)",
+          "oklch(84% 0.011 57)",
+          "oklch(95% 0.009 57)"
+        ]
+      },
+      "rim-ink": {
+        "role": "neutral",
+        "displayName": "Rim Ink",
+        "canonical": "oklch(92.4% 0.017 79)",
+        "tonalRamp": [
+          "oklch(15% 0.008 79)",
+          "oklch(26% 0.010 79)",
+          "oklch(38% 0.013 79)",
+          "oklch(49% 0.015 79)",
+          "oklch(61% 0.015 79)",
+          "oklch(72% 0.013 79)",
+          "oklch(84% 0.010 79)",
+          "oklch(95% 0.008 79)"
+        ]
+      },
+      "rec": {
+        "role": "tertiary",
+        "displayName": "Record Red",
+        "canonical": "oklch(49.3% 0.157 32)",
+        "tonalRamp": [
+          "oklch(15% 0.072 32)",
+          "oklch(26% 0.096 32)",
+          "oklch(38% 0.121 32)",
+          "oklch(49% 0.145 32)",
+          "oklch(61% 0.145 32)",
+          "oklch(72% 0.121 32)",
+          "oklch(84% 0.096 32)",
+          "oklch(95% 0.072 32)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Brush Display",
+        "purpose": "The question being asked and page titles; WenKai 400."
+      },
+      "headline": {
+        "displayName": "Chapter Headline",
+        "purpose": "Chapter, era panel and decade headings."
+      },
+      "title": {
+        "displayName": "Section Title",
+        "purpose": "Panel titles, timeline dates, brand."
+      },
+      "words": {
+        "displayName": "Her Words",
+        "purpose": "Transcripts, memoir prose, cited sources, prompts read to her. Webfont loads 500/700 only, so this renders at 500."
+      },
+      "body": {
+        "displayName": "Operator UI",
+        "purpose": "Controls and operator text."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Hints, tags, metadata, stage band."
+      }
+    },
+    "shadows": [
+      {
+        "name": "pressed-clay-lift",
+        "value": "0 6px 14px rgba(124, 69, 24, .25)",
+        "purpose": "Primary button only; 0 3px 8px rgba(124, 69, 24, .2) when pressed."
+      },
+      {
+        "name": "mic-ring",
+        "value": "0 0 0 6px var(--slip), 0 0 0 9px var(--ochre), 0 10px 24px rgba(42, 29, 22, .25)",
+        "purpose": "The mic: slip gap, ochre ring, soft drop."
+      },
+      {
+        "name": "mic-breathe",
+        "value": "0 0 0 6px var(--slip), 0 0 0 16px rgba(168, 50, 31, .35), 0 10px 24px rgba(42, 29, 22, .25)",
+        "purpose": "Recording keyframe peak, 2.2s ease-in-out loop."
+      },
+      {
+        "name": "toast-float",
+        "value": "0 8px 24px rgba(42, 29, 22, .3)",
+        "purpose": "Transient toast only."
+      }
+    ],
+    "motion": [
+      {
+        "name": "state",
+        "value": ".15s",
+        "purpose": "Hover/press color and transform on pills, tabs, buttons."
+      },
+      {
+        "name": "band",
+        "value": ".2s",
+        "purpose": "Stage band segment fills and mic background."
+      },
+      {
+        "name": "toast-slide",
+        "value": ".3s cubic-bezier(.16, 1, .3, 1)",
+        "purpose": "Toast entering from the right."
+      },
+      {
+        "name": "breathe",
+        "value": "2.2s ease-in-out infinite",
+        "purpose": "Recording mic ring; disabled under prefers-reduced-motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "stack-era",
+        "value": "1100px"
+      },
+      {
+        "name": "mobile",
+        "value": "700px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one ochre action per view: save the answer, start the session.",
+      "html": "<button class=\"ds-btn-primary\">保存这一段</button>",
+      "css": ".ds-btn-primary{display:inline-flex;align-items:center;gap:.5rem;background:var(--ochre);color:#fff;border:0;border-radius:999px;padding:.85rem 1.7rem;font-size:1.1rem;font-weight:700;cursor:pointer;font-family:var(--ui);box-shadow:0 6px 14px rgba(124,69,24,.25);transition:background .15s,transform .1s,box-shadow .15s}.ds-btn-primary:hover{background:var(--ochre-deep)}.ds-btn-primary:active{transform:translateY(1px);box-shadow:0 3px 8px rgba(124,69,24,.2)}.ds-btn-primary:focus-visible{outline:3px solid var(--ochre);outline-offset:2px}"
+    },
+    {
+      "name": "Tool Pill",
+      "kind": "button",
+      "refersTo": "pill",
+      "description": "Default outlined control; inverts to iron on hover.",
+      "html": "<button class=\"ds-pill\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 9.5h3l5-4v13l-5-4H4z\"/><path d=\"M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11\"/></svg>读给姥姥听</button>",
+      "css": ".ds-pill{display:inline-flex;align-items:center;gap:.45rem;border:2px solid var(--iron);border-radius:999px;background:var(--slip-hi);padding:.5rem 1.1rem;cursor:pointer;font-size:.95rem;color:var(--iron);font-family:var(--ui);transition:background .15s,color .15s,transform .1s}.ds-pill:hover{background:var(--iron);color:var(--slip-hi)}.ds-pill:active{transform:translateY(1px)}.ds-pill:focus-visible{outline:3px solid var(--ochre);outline-offset:2px}"
+    },
+    {
+      "name": "Strong Pill",
+      "kind": "button",
+      "refersTo": "pill-strong",
+      "description": "The spontaneous-memory action, always within reach.",
+      "html": "<button class=\"ds-pill-strong\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 5.5h14v10H10l-4 3.5v-3.5H5z\"/><path d=\"M12 8.2v4.6M9.7 10.5h4.6\"/></svg>姥姥想起别的事</button>",
+      "css": ".ds-pill-strong{display:inline-flex;align-items:center;gap:.45rem;border:2px solid var(--ochre-deep);border-radius:999px;background:var(--ochre-wash);color:var(--ochre-deep);padding:.5rem 1.1rem;cursor:pointer;font-size:.95rem;font-weight:600;font-family:var(--ui);transition:background .15s,color .15s}.ds-pill-strong:hover{background:var(--ochre-deep);color:#fff}.ds-pill-strong:focus-visible{outline:3px solid var(--ochre);outline-offset:2px}"
+    },
+    {
+      "name": "Quiet Pill",
+      "kind": "button",
+      "refersTo": "pill-quiet",
+      "description": "Secondary action without outline.",
+      "html": "<button class=\"ds-pill-quiet\">换个问题</button>",
+      "css": ".ds-pill-quiet{display:inline-flex;align-items:center;gap:.45rem;border:2px solid transparent;border-radius:999px;background:none;color:var(--iron-soft);padding:.5rem 1.1rem;cursor:pointer;font-size:.95rem;font-family:var(--ui);transition:background .15s,color .15s}.ds-pill-quiet:hover{background:var(--glaze);color:var(--iron)}.ds-pill-quiet:focus-visible{outline:3px solid var(--ochre);outline-offset:2px}"
+    },
+    {
+      "name": "Stage Band",
+      "kind": "custom",
+      "refersTo": "band-segment",
+      "description": "Signature: fired iron for stages talked through, ochre for the current one.",
+      "html": "<div class=\"ds-band\"><button class=\"ds-seg ds-done\">家乡与家人</button><button class=\"ds-seg ds-on\">童年与上学</button><button class=\"ds-seg\">青年时代</button><button class=\"ds-seg\">成家</button></div>",
+      "css": ".ds-band{display:inline-flex;border:2px solid var(--iron);border-radius:999px;background:var(--slip-hi);overflow:hidden}.ds-seg{white-space:nowrap;border:0;border-right:1.5px solid var(--iron);background:none;padding:.5rem 1.05rem;font-size:.9rem;cursor:pointer;color:var(--iron);font-family:var(--ui);transition:background .2s,color .2s}.ds-seg:last-child{border-right:0}.ds-seg:hover{background:var(--glaze)}.ds-seg.ds-done{background:var(--iron);color:var(--rim-ink)}.ds-seg.ds-done:hover{background:#3d2c22}.ds-seg.ds-on{background:var(--ochre);color:#fff;font-weight:600}.ds-seg:focus-visible{outline:3px solid var(--ochre);outline-offset:2px}"
+    },
+    {
+      "name": "Rim Header",
+      "kind": "nav",
+      "refersTo": "topbar",
+      "description": "Iron rim with the ochre band; tabs underline ochre when current.",
+      "html": "<header class=\"ds-rim\"><span class=\"ds-brand\">姥姥的回忆录</span><nav class=\"ds-tabs\"><button class=\"ds-tab\" aria-current=\"page\">访谈</button><button class=\"ds-tab\">人生时间线</button><button class=\"ds-tab\">回忆录</button></nav><button class=\"ds-backup\">今天已备份</button></header>",
+      "css": ".ds-rim{display:flex;align-items:center;gap:2.4rem;height:76px;padding:0 2.4rem;background:var(--iron);color:var(--rim-ink);border-bottom:6px solid var(--ochre);font-family:var(--ui)}.ds-brand{font-family:var(--display);font-size:1.65rem;letter-spacing:.1em;color:#fff;white-space:nowrap}.ds-tabs{display:flex;gap:1.6rem}.ds-tab{background:none;border:0;padding:.4rem 0;cursor:pointer;color:var(--rim-ink);font-size:.95rem;border-bottom:3px solid transparent;transition:color .15s,border-color .15s;font-family:inherit}.ds-tab:hover{color:#fff}.ds-tab[aria-current=page]{color:#fff;border-bottom-color:var(--ochre)}.ds-tab:focus-visible{outline:3px solid var(--ochre);outline-offset:2px}.ds-backup{margin-left:auto;background:none;border:1.5px solid var(--rim-ink);color:var(--rim-ink);border-radius:999px;padding:.3rem .9rem;font-size:.8rem;cursor:pointer;font-family:inherit}"
+    },
+    {
+      "name": "Mic",
+      "kind": "button",
+      "refersTo": "mic",
+      "description": "The one dark record button, ringed in ochre; breathes red while recording.",
+      "html": "<button class=\"ds-mic\"><svg width=\"34\" height=\"34\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><rect x=\"9\" y=\"3.5\" width=\"6\" height=\"11\" rx=\"3\"/><path d=\"M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5\"/></svg>按下录音</button>",
+      "css": ".ds-mic{width:128px;height:128px;border-radius:50%;border:0;cursor:pointer;display:grid;place-items:center;align-content:center;gap:.25rem;background:var(--iron);color:var(--slip-hi);font-weight:700;font-size:1rem;font-family:var(--ui);box-shadow:0 0 0 6px var(--slip),0 0 0 9px var(--ochre),0 10px 24px rgba(42,29,22,.25);transition:transform .15s,background .2s}.ds-mic:hover{transform:scale(1.03)}.ds-mic:active{background:var(--rec)}.ds-mic:focus-visible{outline:3px solid var(--ochre);outline-offset:2px}"
+    },
+    {
+      "name": "Transcript Well",
+      "kind": "input",
+      "refersTo": "transcript-well",
+      "description": "Where her words land, set in the words serif.",
+      "html": "<textarea class=\"ds-well\" placeholder=\"姥姥说的话会出现在这里，可以直接改。\">我想起来了，结婚那年下了好大的雪。</textarea>",
+      "css": ".ds-well{width:100%;min-height:8rem;resize:vertical;background:var(--slip-hi);border:2px solid var(--iron);border-radius:22px;padding:1.1rem 1.4rem;font-family:var(--words);font-size:1.3rem;line-height:1.85;color:var(--iron);caret-color:var(--ochre)}.ds-well::placeholder{color:var(--iron-soft);font-family:var(--ui);font-size:1rem}.ds-well:focus-visible{outline:3px solid var(--ochre);outline-offset:2px}"
+    },
+    {
+      "name": "Era Cue Card",
+      "kind": "card",
+      "refersTo": "cue-card",
+      "description": "A slip card on the glaze panel: year, tag, event, a prompt to read aloud.",
+      "html": "<div class=\"ds-era\"><article class=\"ds-cue\"><div class=\"ds-cue-top\"><span class=\"ds-year\">1958</span><span class=\"ds-tag ds-local\">邯郸</span></div><div class=\"ds-cue-title\">邯郸钢铁厂成立</div><p class=\"ds-cue-q\">那时候家里有人去厂里干活吗？</p></article></div>",
+      "css": ".ds-era{background:var(--glaze);padding:1.4rem;color:var(--iron);font-family:var(--ui)}.ds-cue{background:var(--slip-hi);border:1.5px solid var(--iron);border-radius:18px;padding:1rem 1.1rem}.ds-cue-top{display:flex;align-items:center;gap:.5rem}.ds-year{font-family:var(--display);font-size:1.5rem;color:var(--ochre-deep);line-height:1}.ds-tag{font-size:.7rem;border:1.5px solid var(--iron-soft);border-radius:999px;padding:0 .5rem;color:var(--iron-soft)}.ds-tag.ds-local{border-color:var(--ochre-deep);color:var(--ochre-deep);background:var(--ochre-wash)}.ds-cue-title{font-weight:700;margin-top:.45rem}.ds-cue-q{font-family:var(--words);line-height:1.65;margin:.45rem 0 0}"
+    },
+    {
+      "name": "Settings Field",
+      "kind": "input",
+      "refersTo": "field-input",
+      "description": "Labelled field on a settings panel.",
+      "html": "<div class=\"ds-panel\"><label class=\"ds-field\"><span>Claude 密钥</span><input class=\"ds-input\" placeholder=\"sk-ant-...\"></label></div>",
+      "css": ".ds-panel{background:var(--slip-hi);border:2px solid var(--iron);border-radius:24px;padding:1.5rem 1.6rem;font-family:var(--ui);color:var(--iron)}.ds-field{display:grid;gap:.3rem}.ds-field span{font-weight:600;font-size:.88rem}.ds-input{border:1.5px solid var(--iron);border-radius:14px;padding:.6rem .85rem;background:var(--slip);font:inherit;color:inherit;caret-color:var(--ochre)}.ds-input:focus-visible{outline:3px solid var(--ochre);outline-offset:2px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Handan Jar",
+    "overview": "**Creative North Star: \"The Handan Jar\"**\n\nThe app is a piece of 磁州窑 (Cizhou ware) from 姥姥's own Handan: a white-slip body, painted in iron-black brushwork, with one warm ochre stroke. The page is the slip ground; the header is the dark rim round the jar's mouth with an ochre band beneath it; controls are painted bands, pill-shaped and outlined in a 2px iron line. The display face, LXGW WenKai, keeps a brush-written character, so headings read as written rather than set.\n\nDensity is calm and operator-sized: an 18px root, one large question per screen, generous wells for her words. The operator sits in a lit room beside an elderly speaker, so the system is light only, set by the use scene rather than by preference. The surface stays flat; depth comes from fills and outlines, with soft shadow kept to the two physical objects (the primary save pill and the mic).\n\nThe confirmed anti-references are the cream-paper + serif + terracotta memoir default and the grey productivity-tool default. The world answers both with a specific regional material instead of a genre mood.",
+    "keyCharacteristics": [
+      "White slip ground, iron-black ink and outlines, one ochre accent for \"now\" and \"primary\".",
+      "2px iron outlines and pill silhouettes as painted bands.",
+      "Three type voices: brush display (WenKai), her words (Noto Serif SC), operator UI (PingFang).",
+      "The stage band is the signature: talked-through stages are fired iron, the current one is ochre.",
+      "Era context sits on a grey glaze panel and never reaches the printed book.",
+      "Light only."
+    ],
+    "rules": [
+      {
+        "name": "The Ochre Is Now Rule",
+        "body": "Ochre marks the current stage, the primary action, focus, or her unprompted memories. One ochre fill per view; everything else is iron on slip.",
+        "section": "colors"
+      },
+      {
+        "name": "The Glaze Is Context Rule",
+        "body": "Grey glaze carries reference material that helps her recall (era cues, \"that year\" strips). Her own words never sit on glaze, and glaze content is excluded from print.",
+        "section": "colors"
+      },
+      {
+        "name": "The Light Only Rule",
+        "body": "One light scheme (`color-scheme: light`). The app is used in a lit room beside her; there is no dark mode.",
+        "section": "colors"
+      },
+      {
+        "name": "The Her Words Rule",
+        "body": "Noto Serif SC is reserved for spoken or quoted words: hers, her sources, the lines read to her. Never use it for UI chrome.",
+        "section": "typography"
+      },
+      {
+        "name": "The Brush Is Never Bold Rule",
+        "body": "WenKai is set at weight 400 everywhere; hierarchy comes from size, not weight.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat Slip Rule",
+        "body": "Cards, panels, wells, and pills take no shadow. Lift them with fresh glaze on slip and an iron line.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do outline controls and containers in 2px iron (`--line`) and use 1.5px for dividers inside them.",
+      "Do keep ochre for the current stage, the primary action, focus, and her spontaneous memories.",
+      "Do mark progress with the stage band: fired iron for done, ochre for current, fresh glaze for not yet.",
+      "Do set her words in Noto Serif SC and the app's own large voice in LXGW WenKai at weight 400.",
+      "Do put era and context material on grey glaze and keep it out of the printed book.",
+      "Do draw new icons as 24px-grid SVG with a 2px round stroke in currentColor."
+    ],
+    "donts": [
+      "Don't add a dark mode; the system is light only.",
+      "Don't drift toward the cream-paper + serif + terracotta memoir look or a grey productivity-tool look.",
+      "Don't use square corners on controls; buttons, tags, and selects are full pills.",
+      "Don't add shadows to cards, panels, or wells; shadow belongs to the primary button, the mic, and the toast.",
+      "Don't use emoji or text glyphs as icons.",
+      "Don't let a display font with partial CJK coverage near AI-generated text; it must cover GB2312 at minimum."
+    ]
+  }
+}
