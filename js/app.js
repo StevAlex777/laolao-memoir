@@ -319,7 +319,12 @@ function tlForm(e = {}) {
 }
 
 function viewTimeline() {
-  const addBtn = state.tlEditing === 'new' ? tlForm() : `<button class="pill" data-action="tl-new">${icon('plus')}添加一条</button>`;
+  const pending = pendingExtraction().length;
+  const aiBtn = hasAI() && pending
+    ? `<button class="btn-primary small" data-action="tl-extract-all" ${state.busy ? 'disabled' : ''}>用 AI 整理还没整理过的 ${pending} 段回答</button>`
+    : '';
+  const addBtn = state.tlEditing === 'new' ? tlForm()
+    : `<div class="pills">${aiBtn}<button class="pill" data-action="tl-new">${icon('plus')}添加一条</button></div>${state.busy ? `<p class="busy"><span class="spinner"></span>${h(state.busy)}</p>` : ''}${!hasAI() && pending ? `<p class="hint">有 ${pending} 段回答还没整理进时间线。在「设置」里填上 Claude 密钥后，可以一键让 AI 整理。</p>` : ''}`;
   if (!state.timeline.length) {
     return `<div class="page narrow"><h1 class="display">人生时间线</h1><p class="lede">${hasAI()
       ? '每次「结束这次访谈」时，AI 会把姥姥讲到的事按年份整理到这里。也可以自己添加。'
@@ -625,6 +630,7 @@ const actions = {
     render();
   },
   'tl-new': () => { state.tlEditing = 'new'; render(); },
+  'tl-extract-all': extractAllPending,
   'tl-edit': (el) => { state.tlEditing = el.dataset.id; render(); },
   'tl-cancel': () => { state.tlEditing = null; render(); },
   'tl-save': async (el) => {
@@ -972,6 +978,46 @@ async function saveAnswer() {
   await askNext(); // AI follows her thread first, then drifts back to the stage
 }
 
+const realText = (t) => t.text && t.text !== '（只有录音，文字待补）';
+
+/** Extract life events from these answers into the timeline, then mark them as done. Returns how many were added. */
+async function extractInto(answers) {
+  const events = await ai.extractEvents({
+    profileText: profileText(state.profile),
+    turnsText: expand(answers).map((t) => (t.role === 'q' ? `问：${t.text}` : `[${t.id}] 姥姥：${t.text}`)).join('\n'),
+  });
+  const merged = mergeTimeline(state.timeline, events, state.turns.map((t) => t.id), state.profile.birthDate);
+  const added = merged.length - state.timeline.length;
+  for (const e of merged.slice(state.timeline.length)) await db.put('timeline', e);
+  state.timeline = merged;
+  for (const t of answers) { t.extracted = true; await db.put('turns', t); }
+  return added;
+}
+
+const pendingExtraction = () => answersFor((t) => !t.extracted && realText(t));
+
+/** Timeline page: run AI over every answer that hasn't been turned into timeline entries yet. */
+async function extractAllPending() {
+  const todo = pendingExtraction();
+  if (!todo.length) return toast('所有回答都已经整理过了。');
+  const batches = [];
+  for (let i = 0; i < todo.length; i += 25) batches.push(todo.slice(i, i + 25));
+  let added = 0;
+  try {
+    for (let i = 0; i < batches.length; i++) {
+      state.busy = `正在整理第 ${i + 1} / ${batches.length} 批（共 ${todo.length} 段回答）…`;
+      render();
+      added += await extractInto(batches[i]);
+    }
+    toast(`整理完了，时间线新增 ${added} 条。`);
+  } catch (e) {
+    toast(`整理到一半停了（${ai.explain(e)}）。已整理的会保留，再点一次会接着整理剩下的。`, true);
+  } finally {
+    state.busy = '';
+    render();
+  }
+}
+
 async function endSession() {
   if ((state.draft.trim() || state.pendingClips.length) && confirm('还有没保存的这段话（录音已经存好了），先保存再结束吗？')) {
     await saveAnswerOnly();
@@ -982,14 +1028,8 @@ async function endSession() {
     state.busy = '正在整理这次聊到的人生经历…';
     render();
     try {
-      const events = await ai.extractEvents({
-        profileText: profileText(state.profile),
-        turnsText: expand(sessionAnswers).map((t) => (t.role === 'q' ? `问：${t.text}` : `[${t.id}] 姥姥：${t.text}`)).join('\n'),
-      });
-      const merged = mergeTimeline(state.timeline, events, state.turns.map((t) => t.id), state.profile.birthDate);
-      added = merged.length - state.timeline.length;
-      for (const e of merged.slice(state.timeline.length)) await db.put('timeline', e);
-      state.timeline = merged;
+      const todo = sessionAnswers.filter((t) => !t.extracted && realText(t));
+      if (todo.length) added = await extractInto(todo);
     } catch (e) {
       toast(`时间线这次没整理成（${ai.explain(e)}），原话都已保存，不影响。`, true);
     }
