@@ -41,6 +41,7 @@ const state = {
   asrStatus: null,  // local Qwen3-ASR service, or null when not installed/running
   pendingClips: [], // audio ids recorded for the answer being composed (already saved to disk)
   pendingPhotos: [], // photo ids shown during the answer being composed
+  persisted: null,   // browser promised not to evict our data under disk pressure
   editingPara: null, // 'stageId:index' of a chapter paragraph being edited
   tlEditing: null,   // 'new' or a timeline id being edited
 };
@@ -98,7 +99,7 @@ async function boot() {
   }
   checkASR();
   setInterval(checkASR, 30_000);
-  db.persist();
+  state.persisted = await db.persist();
   state.view = location.hash.slice(1) || 'interview';
   window.addEventListener('hashchange', () => go(location.hash.slice(1) || 'interview', false));
   window.addEventListener('beforeunload', (e) => { if (state.voice) { e.preventDefault(); e.returnValue = ''; } });
@@ -466,6 +467,9 @@ function viewSettings() {
       </section>
       <section class="panel">
         <h2>备份</h2>
+        <p class="${state.persisted ? 'hint' : 'mode-note'}">${state.persisted
+          ? '存储保护：已开启。浏览器不会自动清理这里的内容。'
+          : '存储保护：还没开启。电脑磁盘紧张时，浏览器有可能自动清理网站数据。把这个网址<b>加进书签</b>，或者在 Chrome 右上角菜单里选「安装为应用」，Chrome 一般就会开启保护；之后刷新这一页看看。'}</p>
         <p>所有内容存在这台电脑的浏览器里。清理浏览器数据或换电脑会丢，所以要常备份，并把备份文件发给家人存一份。每次结束访谈会自动下载一份文字备份。${state.asrStatus ? `装了本机精修时，每段录音和每次的备份还会另存一份普通文件在「${h(state.asrStatus.archive || '~/姥姥的回忆录')}」。` : ''}</p>
         <div class="stack">
           <button class="pill" data-action="quick-backup">${icon('download')}文字备份（.json，很小）</button>
