@@ -12,3 +12,5 @@ PRODUCT.md
 .impeccable/config.local.json
 .DS_Store
 __pycache__/
+交接说明.md
+.impeccable/live/
