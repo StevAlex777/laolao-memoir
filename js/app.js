@@ -184,14 +184,12 @@ function viewInterview() {
        <div class="pills">
          <button class="pill" data-action="speak" ${state.questionBusy ? 'disabled' : ''}>${icon('speak')}读给姥姥听</button>
          <button class="pill" data-action="other-question" ${locked || rec ? 'disabled' : ''}>${icon('refresh')}换个问题</button>
-         <button class="pill strong" data-action="free-memory" ${locked ? 'disabled' : ''}>${icon('memory')}姥姥想起别的事</button>
        </div>`;
 
   return `<div class="interview">
     <section class="work">
       <div class="work-top">
         ${stageBand(stage.id, 'switch-stage')}
-        <button class="pill quiet" data-action="end-session" ${state.busy || rec ? 'disabled' : ''}>结束这次访谈</button>
       </div>
       ${questionBlock}
       ${thumbs(state.pendingPhotos, true)}
@@ -211,11 +209,16 @@ function viewInterview() {
             <button class="pill quiet" data-action="clear-draft" ${rec ? 'disabled' : ''}>清空</button>
             <span class="hint">⌘ + 回车 也能保存</span>
           </div>
+          ${state.free ? '' : `<div class="aside-action"><button class="pill strong" data-action="free-memory" ${locked ? 'disabled' : ''}>${icon('memory')}姥姥想起别的事</button><span class="hint">她说起了和问题无关的事？点这里单独记下，不用管问题。</span></div>`}
           ${state.asrStatus?.ready ? `<p class="hint mode-hint">本机精修已连接：保存后会用录音自动校正文字。</p>` : ''}
           ${!hasAI() && !state.free ? `<p class="hint mode-hint">现在按题库提问。在「设置」里填上 Claude 密钥，AI 就会接着姥姥的话追问。</p>` : ''}
         </div>
       </div>
       ${state.busy ? `<p class="busy"><span class="spinner"></span>${h(state.busy)}</p>` : ''}
+      <div class="session-end">
+        <div><b>今天聊完了？</b><span class="hint">结束后会把这次聊的内容存好，${hasAI() ? '整理进人生时间线，' : ''}并自动下载一份备份。</span></div>
+        <button class="pill" data-action="end-session" ${state.busy || rec ? 'disabled' : ''}>结束这次访谈</button>
+      </div>
       ${sessionAnswers.length ? `<section class="log" aria-label="这次记下的">
         <h2 class="log-title">这次记下的 · ${sessionAnswers.length} 段</h2>
         ${sessionAnswers.slice().reverse().map(logItem).join('')}
@@ -271,6 +274,7 @@ function viewStart() {
     ${stageBand(suggested, 'start-session')}
     <p class="hint">${total ? `深色的是已经聊过的阶段。建议从「${h(stageById(suggested).title)}」接着聊。` : '建议从「家乡与家人」聊起，聊过的阶段会变成深色。'}${unsorted ? ` 还有 ${unsorted} 段回忆待归类，在「回忆录」里可以归一下。` : ''}</p>
     <div class="start-free"><button class="pill strong" data-action="start-free" data-stage="${suggested}">${icon('memory')}姥姥想起别的事</button><span class="hint">不选阶段，先把她想说的录下来，放进「待归类」。</span></div>
+    ${total ? '' : `<p class="hint">第一次用？先花两分钟看看顶上的「使用说明」。</p>`}
     ${!hasAI() ? `<p class="mode-note">没填 Claude 密钥也完全能用：按题库提问、录音、存档、整理成稿。填上密钥后会多出 AI 追问、自动整理时间线和写成文章。</p>` : ''}
   </div>`;
 }
@@ -469,30 +473,52 @@ function viewSettings() {
 function viewHelp() {
   return `<div class="page narrow help">
     <h1 class="display">使用说明</h1>
-    <h2>第一次</h2>
+    <p class="lede">一次聊二三十分钟就好。页面从上往下，就是使用的顺序。</p>
+
+    <h2>第一次用（只做一次）</h2>
     <ol>
-      <li>用 <b>Chrome</b> 打开这个网址（Safari 也行，但语音转文字 Chrome 更稳）。</li>
-      <li>想要 AI 追问的话，在「设置」里粘贴家人给的 Claude 密钥。不填也能用。</li>
-      <li>第一次按「开始说」时，浏览器会问能不能用麦克风，点「允许」。</li>
+      <li>用 <b>Chrome</b> 打开这个网址，并加进书签。<b>以后一直用这一个网址</b>，内容和网址绑在一起，换了网址就看不到之前的内容。</li>
+      <li>在「先认识一下姥姥」里填称呼、出生日期、出生地，点「好了，开始」。</li>
+      <li>想要 AI 跟着姥姥的话追问：点顶上「设置」，在「AI 助手」里粘贴 Claude 密钥，点「保存并检查」。不填也能用，会按题库提问。</li>
+      <li>「设置」里看一眼「本机语音精修」：显示「已连接」最好。如果 Chrome 问「是否允许访问本地网络上的设备」，点「允许」。</li>
     </ol>
-    <h2>每次聊天</h2>
+
+    <h2>每次访谈</h2>
     <ol>
-      <li>在「访谈」里点一个人生阶段开始。</li>
-      <li>把问题读给姥姥听，或者点「读给姥姥听」。</li>
-      <li>点深色的大按钮「开始说」，姥姥说完点「停止」。文字不对可以直接改。</li>
-      <li>点「保存，问下一个」。问题不合适就点「换个问题」。</li>
-      <li>姥姥中途停下、有人打断：点「暂停」，回来点「继续说」，会接在同一段里。录音每分钟自动存一次，浏览器意外关掉也最多丢一分钟。</li>
-      <li><b>姥姥突然想起别的事</b>：随时点「姥姥想起别的事」，让她尽管说。${'有密钥时 AI 会把它归到对应阶段并顺着往下问；没有密钥时先放进「待归类」，以后在「回忆录」里选一下阶段就行。'}</li>
-      <li>右边「那一年」是姥姥那个年纪时发生的事，可以问她还记不记得。</li>
-      <li>聊完点「结束这次访谈」，会<b>自动下载一份备份</b>。</li>
+      <li><b>选阶段</b>：在「访谈」页点一个人生阶段，比如「家乡与家人」。深色的是聊过的阶段，赭色的是现在这个。</li>
+      <li><b>问问题</b>：把大字的问题读给姥姥听，或者点「读给姥姥听」。问题不合适就点「换个问题」。右边「那一年」是她那个年纪发生的事，看到合适的可以点「用这个问」。</li>
+      <li><b>录她说的</b>：点深色圆按钮「开始说」，姥姥说的话会出现在文本框里。
+        <ul>
+          <li>有人打断、她要喝口水：点「暂停」，回来点「继续说」，会接在同一段里。</li>
+          <li>文字认错了，直接在文本框里改。</li>
+        </ul>
+      </li>
+      <li><b>保存这段</b>：这个话题聊完了，点「保存，问下一个」，会出下一个问题。她停下来想一想时不用急着点，AI 也不会插嘴。</li>
+      <li><b>她说起别的事</b>：姥姥突然讲起和问题无关的事，点「姥姥想起别的事」，让她尽管说，说完点「保存这段回忆」。${hasAI() ? 'AI 会把它归到对应的人生阶段，再顺着往下问。' : '它会先放进「待归类」，以后在「回忆录」里选一下阶段就行。'}</li>
+      <li><b>今天聊完了</b>：点最下面的「结束这次访谈」。这次的内容会存好，${hasAI() ? 'AI 会整理进「人生时间线」，' : ''}并<b>自动下载一份备份</b>到「下载」文件夹。</li>
     </ol>
+
+    <h2>聊过之后</h2>
+    <ul>
+      <li><b>人生时间线</b>：按年份排好的人生大事。可以点「原话」核对，也可以「修改」「删除」，或者「添加一条」家里知道的事。</li>
+      <li><b>回忆录</b>：按人生阶段排好的书稿。点任意一段，可以改文字、听原声，或者标成「这段不印」。${hasAI() ? '点「让 AI 写成文章」，会用姥姥的口吻把原话整理成连贯的文章。' : ''}准备好了点「打印 / 存成 PDF」。</li>
+      <li><b>备份</b>：每隔几天在「设置」里点「完整备份含录音」，把文件发给家里人存一份。这是最重要的一件事。</li>
+    </ul>
+
+    <h2>遇到问题</h2>
+    <ul>
+      <li><b>按「开始说」没反应、提示没有麦克风权限</b>：点地址栏左边的图标，把「麦克风」改成允许，再点一次。</li>
+      <li><b>文字认得不准</b>：录音都存着。装了本机精修的话，保存后会用录音再认一遍；还不对就手动改。点「听原声」可以对照。</li>
+      <li><b>「本机语音精修」显示未检测到</b>：重启一下电脑；还不行也没关系，应用照常能用，只是文字以实时识别为准。</li>
+      <li><b>浏览器不小心关了</b>：重新打开同一个网址。录音每分钟存一次，没保存的文字也会恢复。</li>
+      <li><b>换了电脑、内容不见了</b>：在新电脑的 Chrome 里打开同一个网址，到「设置」点「从备份恢复…」，选最近的备份文件。</li>
+      <li><b>AI 提示密钥不对或余额不足</b>：不影响录音和保存，会自动改用题库提问；等家里人处理好密钥再说。</li>
+    </ul>
+
     <h2>小提示</h2>
     <ul>
-      <li>一次聊二三十分钟就好，姥姥累了就停，下次接着聊。</li>
-      <li>姥姥说「不记得了」没关系，换个话题。老照片、老物件特别能勾起回忆。</li>
-      <li>录音只存在这台电脑上，不会上传；发给 AI 的只有文字。</li>
-      <li>每隔几天在「设置」里下载一份<b>完整备份（含录音）</b>，发给家人。</li>
-      <li>如果这台电脑装了「本机语音精修」，每段保存后会用录音重新识别、自动校正文字（「设置」里能看到是否已连接）。第一次 Chrome 可能会问「是否允许访问本地网络上的设备」，点允许。</li>
+      <li>姥姥累了就停，下次接着聊。她说「不记得了」就换个话题。</li>
+      <li>录音和内容都只存在这台电脑上。用 AI 时，发给 AI 的只有文字，不发录音。</li>
     </ul>
   </div>`;
 }

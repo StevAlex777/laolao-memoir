@@ -137,6 +137,10 @@ main { outline: none; }
 .start-free { display: flex; flex-wrap: wrap; align-items: center; gap: .8rem; margin-top: 1.6rem; }
 .interim { color: var(--iron-soft); min-height: 1.6em; font-family: var(--words); margin-top: .3rem; }
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: .8rem; margin-top: .8rem; }
+.aside-action { display: flex; flex-wrap: wrap; align-items: center; gap: .8rem; margin-top: 1.2rem; padding-top: 1rem; border-top: 1.5px dashed var(--glaze); }
+.session-end { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 2.2rem; padding: 1rem 1.2rem; border: 1.5px solid var(--glaze); border-radius: 18px; max-width: 52rem; }
+.session-end b { font-family: var(--display); font-weight: 400; font-size: 1.15rem; margin-right: .6rem; }
+.help ul ul, .help ol ul { margin-top: .4rem; }
 .busy { display: flex; align-items: center; gap: .6rem; margin-top: 1.2rem; color: var(--ochre-deep); }
 
 .log { margin-top: 3rem; border-top: var(--line); padding-top: 1.4rem; max-width: 52rem; }
