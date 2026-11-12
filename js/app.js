@@ -244,6 +244,7 @@ function logItem(t) {
     <div class="log-tools">
       ${t.audioIds?.length ? `<button class="link" data-action="play" data-audio="${t.audioIds.join(',')}">${icon('play', 16)}听原声</button>` : ''}
       <button class="link" data-action="edit" data-id="${t.id}">${icon('edit', 16)}改文字</button>
+      <button class="link danger" data-action="delete-answer" data-id="${t.id}">删除这段</button>
       ${t.refined && t.refined !== t.text ? `<button class="link" data-action="use-refined" data-id="${t.id}">改用精修稿</button>` : t.refined ? '<span class="hint">已精修</span>' : ''}
       ${t.free ? stageSelect(t) : ''}
     </div>
@@ -408,7 +409,7 @@ function chapterBlock(stage) {
           <div class="actions"><button class="btn-primary small" data-action="save-edit" data-id="${a.id}">保存修改</button><button class="pill quiet" data-action="cancel-edit">取消</button></div></div>`;
       }
       return `<div class="qa ${a.noprint ? 'noprint' : ''}" data-action="toggle-src" data-key="${key}" tabindex="0">${a.free ? '' : `<p class="qa-q">${h(a.question)}</p>`}<p>${h(a.text)}</p>${figures(a.photoIds)}</div>`
-        + (state.openSources === key ? `<div class="para-tools no-print"><button class="link" data-action="edit" data-id="${a.id}">${icon('edit', 16)}改文字</button><button class="link" data-action="answer-noprint" data-id="${a.id}">${a.noprint ? '恢复打印' : '这段不印'}</button>${a.audioIds?.length ? `<button class="link" data-action="play" data-audio="${a.audioIds.join(',')}">${icon('play', 16)}听原声</button>` : ''}</div>` : '');
+        + (state.openSources === key ? `<div class="para-tools no-print"><button class="link" data-action="edit" data-id="${a.id}">${icon('edit', 16)}改文字</button><button class="link" data-action="answer-noprint" data-id="${a.id}">${a.noprint ? '恢复打印' : '这段不印'}</button><button class="link danger" data-action="delete-answer" data-id="${a.id}">删除这段</button>${a.audioIds?.length ? `<button class="link" data-action="play" data-audio="${a.audioIds.join(',')}">${icon('play', 16)}听原声</button>` : ''}</div>` : '');
     }).join('');
   }
   return `<section class="chapter">
@@ -466,6 +467,11 @@ function viewSettings() {
           <button class="pill" data-action="full-backup">${icon('download')}完整备份含录音（.zip）</button>
           <label class="pill" for="restore-file">从备份恢复…</label><input id="restore-file" type="file" accept=".json,.zip" hidden>
         </div>
+      </section>
+      <section class="panel">
+        <h2>清空访谈内容</h2>
+        <p>试用完、正式开始之前用：删掉所有回答、录音、时间线和回忆录章节。姥姥的信息、Claude 密钥和上网找到的资料会保留。删掉就找不回来，除非有备份。</p>
+        <button class="pill danger" data-action="wipe-all">清空所有访谈内容…</button>
       </section>
     </div>
   </div>`;
@@ -637,6 +643,33 @@ const actions = {
     state.timeline = [...state.timeline.filter((e) => e.id !== item.id), item];
     state.tlEditing = null;
     render();
+  },
+  'delete-answer': async (el) => {
+    const t = state.turns.find((x) => x.id === el.dataset.id);
+    if (!t || !confirm(`删除这段回答和它的录音？\n\n「${t.text.slice(0, 40)}${t.text.length > 40 ? '…' : ''}」\n\n删掉就找不回来了。`)) return;
+    for (const id of t.audioIds || []) await db.del('audio', id);
+    await db.del('turns', t.id);
+    state.turns = state.turns.filter((x) => x.id !== t.id);
+    // Timeline entries that rested only on this answer go too; others just lose the reference.
+    for (const e of [...state.timeline]) {
+      if (!e.turnIds?.includes(t.id)) continue;
+      e.turnIds = e.turnIds.filter((x) => x !== t.id);
+      if (!e.turnIds.length && !e.manual) { await db.del('timeline', e.id); state.timeline = state.timeline.filter((x) => x.id !== e.id); }
+      else await db.put('timeline', e);
+    }
+    toast('已删除这段。写好的章节如果用到过它，需要的话点「重新写」。');
+    render();
+  },
+  'wipe-all': async () => {
+    const n = state.turns.length;
+    const typed = prompt(`将删除全部 ${n} 段回答、所有录音、人生时间线和回忆录章节。\n姥姥的信息、密钥和上网找到的资料会保留。\n\n确定的话，请输入「清空」两个字：`);
+    if (typed?.trim() !== '清空') { if (typed != null) toast('没有输入「清空」，什么都没删。'); return; }
+    if (state.voice) await stopMic();
+    for (const store of ['turns', 'sessions', 'audio', 'timeline', 'chapters', 'photos']) await db.clear(store);
+    for (const k of ['draft', 'pendingClips', 'pendingPhotos', 'currentQuestion', 'lastBackup', 'lastFullBackup']) await db.setKV(k, k.startsWith('pending') ? [] : '');
+    Object.assign(state, { turns: [], timeline: [], chapters: [], session: null, question: '', draft: '', pendingClips: [], pendingPhotos: [], free: false, editing: null, openSources: null });
+    toast(`已清空 ${n} 段回答。可以正式开始了。`);
+    go('interview');
   },
   'cancel-free': () => { state.free = false; setQuestion(state.returnQuestion || state.question); render(); },
   'toggle-mic': () => (state.voice ? stopMic() : startMic()),
