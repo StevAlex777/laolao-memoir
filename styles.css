@@ -11,6 +11,7 @@
   --glaze-ink: #3d332c;    /* secondary ink on glaze */
   --rim-ink: #ece5da;      /* text on the iron rim */
   --rec: #a8321f;
+  --placeholder: #6b6158;  /* 5.4:1 on slip: readable, still clearly not her words */
   --line: 2px solid var(--iron);
   --display: "LXGW WenKai", "Kaiti SC", "STKaiti", serif;
   --words: "Noto Serif SC", "Songti SC", serif;
@@ -27,6 +28,7 @@ p, li { text-wrap: pretty; }
 ::selection { background: var(--ochre); color: var(--slip-hi); }
 :focus-visible { outline: 3px solid var(--ochre); outline-offset: 2px; }
 textarea, input { caret-color: var(--ochre); }
+::placeholder { color: var(--placeholder); opacity: 1; }
 * { scrollbar-color: var(--glaze) transparent; }
 a { color: var(--ochre-deep); text-underline-offset: 3px; }
 h1, h2, h3, p { margin: 0; }
@@ -82,8 +84,11 @@ main { outline: none; }
 .btn-primary:disabled { opacity: .45; cursor: not-allowed; }
 .btn-primary.small { padding: .55rem 1.2rem; font-size: .95rem; }
 
-.link { display: inline-flex; align-items: center; gap: .3rem; background: none; border: 0; padding: 0; color: var(--ochre-deep); cursor: pointer; font-size: .85rem; text-decoration: underline; text-underline-offset: 3px; }
+.link { display: inline-flex; align-items: center; gap: .3rem; min-height: 28px; background: none; border: 0; padding: 0; color: var(--ochre-deep); cursor: pointer; font-size: .85rem; text-decoration: underline; text-underline-offset: 3px; }
 .link.danger { color: var(--rec); }
+/* Destructive links sit apart from the edit links next to them. */
+.log-tools .link.danger, .para-tools .link.danger { margin-left: auto; }
+.tl-tools .link.danger { margin-left: .6rem; }
 
 /* ---- the painted stage band (signature) ---- */
 .band { display: inline-flex; flex-wrap: nowrap; max-width: 100%; overflow-x: auto; scrollbar-width: none; border: var(--line); border-radius: 999px; background: var(--slip-hi); }
@@ -93,9 +98,10 @@ main { outline: none; }
 .band-seg.done { background: var(--iron); color: var(--rim-ink); }
 .band-seg.done:hover { background: #3d2c22; }
 .band-seg.on { background: var(--ochre); color: #fff; font-weight: 600; }
+.band-seg .n { margin-left: .35rem; font-size: .72rem; font-weight: 400; font-variant-numeric: tabular-nums; opacity: .8; }
 
 /* ---- interview ---- */
-.interview { display: grid; grid-template-columns: minmax(0, 1fr) 420px; min-height: calc(100vh - 82px); }
+.interview { display: grid; grid-template-columns: minmax(0, 1fr) 420px; min-height: calc(100vh - 76px); }
 .work { padding: 2rem 3rem 3rem; min-width: 0; }
 .work-top { display: flex; flex-direction: column; align-items: flex-start; gap: .5rem; margin-bottom: 1.6rem; }
 .work-top .pill { align-self: flex-end; white-space: nowrap; margin-top: -.2rem; }
@@ -110,7 +116,8 @@ main { outline: none; }
 @keyframes blink { 50% { opacity: 0; } }
 
 .rec { display: flex; gap: 2rem; margin-top: 1.6rem; align-items: flex-start; }
-.mic-col { flex: none; text-align: center; }
+.mic-col { flex: none; display: flex; flex-direction: column; align-items: center; }
+.mic-col .pill.strong { margin-top: .4rem; white-space: nowrap; }
 .mic {
   width: 128px; height: 128px; border-radius: 50%; border: 0; cursor: pointer;
   display: grid; place-items: center; align-content: center; gap: .25rem;
@@ -129,17 +136,31 @@ main { outline: none; }
   background: var(--slip-hi); border: var(--line); border-radius: 22px;
   padding: 1.1rem 1.4rem; font-family: var(--words); font-size: 1.3rem; line-height: 1.85;
 }
-.well::placeholder { color: var(--iron-soft); font-family: var(--ui); font-size: 1rem; }
+.well::placeholder { color: var(--placeholder); font-family: var(--ui); font-size: 1rem; }
 .well.live { border-color: var(--rec); border-style: dashed; }
 .well.small { min-height: 6rem; font-size: 1.05rem; }
+.saved-note { display: inline-flex; align-items: baseline; gap: .35rem; color: var(--ochre-deep); font-weight: 600; font-size: .95rem; }
+.saved-note .link { font-weight: 400; }
+.bank-done { max-width: 40rem; margin-bottom: 1.4rem; padding: .9rem 1.1rem; border: 1.5px dashed var(--iron-soft); border-radius: 14px; background: var(--slip-hi); color: var(--iron-soft); }
+.bank-done b { font-family: var(--display); font-weight: 400; font-size: 1.25rem; color: var(--iron); margin-right: .4rem; }
 .interim.error { color: var(--rec); font-family: var(--ui); font-weight: 600; }
-.mode-hint { margin-top: .8rem; }
+.first-hints { display: grid; gap: .3rem; margin-top: 1rem; }
+.keys kbd { font-family: var(--ui); }
 .start-free { display: flex; flex-wrap: wrap; align-items: center; gap: .8rem; margin-top: 1.6rem; }
 .interim { color: var(--iron-soft); min-height: 1.6em; font-family: var(--words); margin-top: .3rem; }
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: .8rem; margin-top: .8rem; }
-.aside-action { display: flex; flex-wrap: wrap; align-items: center; gap: .8rem; margin-top: 1.2rem; padding-top: 1rem; border-top: 1.5px dashed var(--glaze); }
 .session-end { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 2.2rem; padding: 1rem 1.2rem; border: 1.5px solid var(--glaze); border-radius: 18px; max-width: 52rem; }
 .session-end b { font-family: var(--display); font-weight: 400; font-size: 1.15rem; margin-right: .6rem; }
+/* Ending with an unsaved answer: the bar becomes the choice, in place. */
+.session-end.ending { border: var(--line); background: var(--slip-hi); align-items: flex-end; }
+.end-copy { display: grid; gap: .3rem; min-width: 0; flex: 1 1 18rem; }
+.end-quote { font-family: var(--words); font-size: 1.05rem; line-height: 1.7; color: var(--iron); max-width: 36em; overflow-wrap: anywhere; quotes: "「" "」"; }
+.end-choices { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
+/* While choosing, the bar's 保存并结束 is the one ochre on screen. */
+.interview.is-ending .actions .btn-primary { background: var(--glaze); color: var(--iron-soft); box-shadow: none; opacity: 1; }
+.mic-alert { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1rem; margin-bottom: .8rem; padding: .7rem 1rem; border: 1.5px solid var(--rec); border-radius: 14px; background: var(--slip-hi); color: var(--rec); font-weight: 600; }
+.mic-alert p { flex: 1 1 16rem; font-size: .92rem; }
+.mic-alert .pill { flex: none; }
 .help ul ul, .help ol ul { margin-top: .4rem; }
 .busy { display: flex; align-items: center; gap: .6rem; margin-top: 1.2rem; color: var(--ochre-deep); }
 
@@ -155,7 +176,7 @@ main { outline: none; }
 .assign select { border: 1.5px solid var(--iron); border-radius: 999px; padding: .2rem .7rem; background: var(--slip-hi); }
 
 /* ---- 那一年: glaze panel ---- */
-.era { background: var(--glaze); border-left: var(--line); padding: 2rem 1.8rem; position: sticky; top: 82px; height: calc(100vh - 82px); overflow-y: auto; color: var(--iron); }
+.era { background: var(--glaze); border-left: var(--line); padding: 2rem 1.8rem; position: sticky; top: 76px; height: calc(100vh - 76px); overflow-y: auto; color: var(--iron); }
 .era-head { display: flex; align-items: baseline; justify-content: space-between; gap: .6rem; }
 .era-head h2 { font-family: var(--display); font-weight: 400; font-size: 1.75rem; }
 .era-head span { font-size: .8rem; color: var(--glaze-ink); }
@@ -182,6 +203,20 @@ main { outline: none; }
 .start .band { margin: .6rem 0 1rem; }
 .start .band-seg { padding: .65rem 1rem; font-size: .95rem; }
 .start .mode-note { margin-top: 1.6rem; }
+/* ---- session close ---- */
+.recap { max-width: 860px; }
+.recap-quote { margin: 1.4rem 0 1.8rem; padding: 1.4rem 0 1.4rem 1.6rem; border-top: var(--line); border-bottom: var(--line); }
+.recap-quote blockquote { margin: 0; font-family: var(--words); font-size: clamp(1.4rem, 2.4vw, 1.9rem); line-height: 1.7; color: var(--iron); text-wrap: balance; }
+.recap-quote blockquote .clause { display: inline-block; }
+.recap-quote blockquote::before { content: "「"; margin-left: -1em; }
+.recap-quote blockquote::after { content: "」"; }
+.recap-quote figcaption { margin-top: .6rem; font-size: .85rem; color: var(--iron-soft); }
+.recap-facts { display: grid; gap: .7rem; margin: 0 0 2rem; max-width: 44rem; }
+.recap-facts div { display: grid; grid-template-columns: 3.2rem 1fr; gap: 1rem; }
+.recap-facts dt { font-family: var(--display); font-size: 1.15rem; color: var(--ochre-deep); }
+.recap-facts dd { margin: 0; }
+.recap-facts b { font-weight: 600; overflow-wrap: anywhere; }
+.recap .pills { align-items: center; gap: .9rem; }
 .setup { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0 1.2rem; max-width: 820px; margin-bottom: 1rem; }
 .setup input { background: var(--slip-hi); }
 
@@ -223,6 +258,7 @@ main { outline: none; }
 .panel h2 { font-family: var(--display); font-weight: 400; font-size: 1.5rem; margin-bottom: .5rem; }
 .panel > p { color: var(--iron-soft); font-size: .92rem; margin-bottom: 1rem; }
 .panel .hint { margin-top: .9rem; }
+.panel > p.warn { color: var(--ochre-deep); font-weight: 600; }
 .field { display: grid; gap: .3rem; margin-bottom: 1rem; }
 .field label { font-weight: 600; font-size: .88rem; }
 .field input, .field textarea { border: 1.5px solid var(--iron); border-radius: 14px; padding: .6rem .85rem; background: var(--slip); }
@@ -241,7 +277,7 @@ main { outline: none; }
 .prose figure.photo img { display: block; max-width: min(100%, 520px); max-height: 420px; border-radius: 6px; box-shadow: 0 4px 14px rgba(42, 29, 22, .18); background: var(--glaze); }
 
 /* ---- book editing ---- */
-.para-tools { display: flex; gap: 1.1rem; margin: -.5rem 0 .6rem 2em; }
+.para-tools { display: flex; flex-wrap: wrap; gap: 1.1rem; margin: -.5rem 0 .6rem 2em; max-width: 34em; }
 .para-edit { margin-bottom: 1rem; }
 .prose .noprint, .prose .noprint p { color: var(--iron-soft); text-decoration: line-through; text-decoration-color: rgba(79, 69, 61, .35); }
 .prose .noprint::after { content: "不印"; display: inline-block; margin-left: .5rem; font-family: var(--ui); font-size: .72rem; text-decoration: none; border: 1.5px solid var(--iron-soft); border-radius: 999px; padding: 0 .45rem; text-indent: 0; }
@@ -265,6 +301,7 @@ main { outline: none; }
 .toast.error { background: var(--rec); border-color: var(--iron); color: #fff; }
 .spinner { display: inline-block; width: 1em; height: 1em; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+@media (hover: none) { .keys { display: none; } } /* no keyboard to press */
 @media (prefers-reduced-motion: reduce) { .mic.recording, .q.loading::after, .spinner { animation: none; } }
 
 /* ---- smaller screens ---- */
@@ -274,8 +311,12 @@ main { outline: none; }
 }
 @media (max-width: 700px) {
   html { font-size: 16px; }
-  .topbar { height: auto; flex-wrap: wrap; gap: .4rem 1.2rem; padding: .7rem 1rem; }
-  .tabs { gap: 1rem; overflow-x: auto; }
+  /* Two rows: brand + backup status, then the tabs as one scrollable line. */
+  .topbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; height: auto; gap: .2rem .8rem; padding: .55rem 1rem 0; }
+  .brand { font-size: 1.3rem; overflow: hidden; text-overflow: ellipsis; }
+  .tabs { grid-column: 1 / -1; gap: 1.1rem; overflow-x: auto; scrollbar-width: none; white-space: nowrap; }
+  .tab { flex: none; padding: .45rem 0 .5rem; }
+  .backup-pill { grid-row: 1; grid-column: 2; margin-left: 0; padding: .2rem .7rem; font-size: .75rem; }
   .work, .page, .start { padding: 1.4rem 1rem 2.4rem; }
   .work-top { flex-direction: column; }
   .rec { flex-direction: column; align-items: center; }

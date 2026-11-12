@@ -365,3 +365,48 @@ export function applyRefined(turn, refined) {
   if (refined && turn.text === turn.draft) out.text = refined;
   return out;
 }
+
+/**
+ * Why the microphone wouldn't open, in words the operator can act on.
+ */
+export function micProblem(e) {
+  const name = e?.name || '';
+  const msg = String(e?.message || '');
+  if (name === 'NotAllowedError' || name === 'SecurityError') {
+    if (/system/i.test(msg)) {
+      return { kind: 'system', text: 'Mac 没允许 Chrome 用麦克风。打开「系统设置 → 隐私与安全性 → 麦克风」，打开 Google Chrome 旁边的开关，退出并重新打开 Chrome 后再试。' };
+    }
+    return { kind: 'denied', text: 'Chrome 没有麦克风权限。点地址栏最左边的图标，把「麦克风」改成「允许」，然后点「再试一次」。' };
+  }
+  if (name === 'NotFoundError' || name === 'OverconstrainedError') {
+    return { kind: 'none', text: '没找到麦克风。接上耳机或外接麦克风，然后点「再试一次」。' };
+  }
+  if (name === 'NotReadableError' || name === 'AbortError') {
+    return { kind: 'busy', text: '麦克风被别的程序占着（比如视频通话、微信语音）。关掉那个程序，然后点「再试一次」。' };
+  }
+  return { kind: 'other', text: `打不开麦克风（${name || msg || '原因不明'}）。可以先打字记下来，再点「再试一次」。` };
+}
+
+export const AUDIO_ONLY = '（只有录音，文字待补）';
+
+/**
+ * One line of hers to close the session with: the longest whole sentence that fits.
+ * Live recognition often has no full stops, so fall back to clauses, then to a cut.
+ */
+export function pickQuote(texts, max = 60) {
+  const real = texts.map((t) => String(t ?? '').trim()).filter((t) => t && t !== AUDIO_ONLY);
+  if (!real.length) return '';
+  const longest = (xs) => xs.reduce((a, b) => (b.length > a.length ? b : a), '');
+  const tidy = (s) => s.trim().replace(/^[，、；：,\s]+/, '');
+  const sentences = real.flatMap((t) => t.split(/(?<=[。！？!?…])/)).map(tidy).filter((s) => s.length >= 6 && s.length <= max);
+  if (sentences.length) return longest(sentences);
+  // No sentence fits: take as many leading clauses of the longest answer as fit.
+  const clauses = longest(real).split(/(?<=[，、；：,])/);
+  let out = '';
+  for (const c of clauses) { if ((out + c).length > max) break; out += c; }
+  out = tidy(out).replace(/[，、；：,]$/, '');
+  return out.length >= 6 ? `${out}……` : `${longest(real).slice(0, max)}……`;
+}
+
+/** /Users/name/姥姥的回忆录 → ~/姥姥的回忆录, the way the family would say it. */
+export const tildePath = (p) => String(p ?? '').replace(/^\/Users\/[^/]+(?=\/|$)/, '~');

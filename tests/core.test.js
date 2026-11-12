@@ -163,3 +163,33 @@ test('paragraphs and answers marked 不印 are left out of the text export', () 
   assert.match(md, /印。/);
   assert.doesNotMatch(md, /不印。/);
 });
+
+test('mic errors are told apart so the operator knows what to do', async () => {
+  const { micProblem } = await import('../js/core.js');
+  const err = (name, message = '') => Object.assign(new Error(message), { name });
+  assert.equal(micProblem(err('NotAllowedError', 'Permission denied')).kind, 'denied');
+  assert.equal(micProblem(err('NotAllowedError', 'Permission denied by system')).kind, 'system');
+  assert.equal(micProblem(err('NotFoundError', 'Requested device not found')).kind, 'none');
+  assert.equal(micProblem(err('NotReadableError', 'Could not start audio source')).kind, 'busy');
+  const other = micProblem(err('TypeError', 'weird'));
+  assert.equal(other.kind, 'other');
+  assert.match(other.text, /TypeError/);
+  assert.ok(micProblem(undefined).text.length > 0);
+});
+
+test('closing quote is one of her own sentences, never the audio-only placeholder', async () => {
+  const { pickQuote, AUDIO_ONLY } = await import('../js/core.js');
+  assert.equal(pickQuote([AUDIO_ONLY]), '');
+  assert.equal(pickQuote(['嗯。那年冬天特别冷，河都冻住了。我们走着去上学。']), '那年冬天特别冷，河都冻住了。');
+  // no punctuation at all from live recognition: cut, mark as cut
+  const run = '我们家那时候住在矿上一个小院子里头前面是食堂后面就是井口天天听见下井的铃声响一响就知道换班了';
+  assert.equal(pickQuote([run], 20), `${run.slice(0, 20)}……`);
+  // commas only: whole clauses up to the limit
+  assert.equal(pickQuote(['我爹在矿上干活，我娘在家纺线，我是老大，下面还有四个弟弟妹妹'], 20), '我爹在矿上干活，我娘在家纺线，我是老大……');
+});
+
+test('archive path is shown with ~ for the home folder', async () => {
+  const { tildePath } = await import('../js/core.js');
+  assert.equal(tildePath('/Users/ann/姥姥的回忆录'), '~/姥姥的回忆录');
+  assert.equal(tildePath('/tmp/x'), '/tmp/x');
+});

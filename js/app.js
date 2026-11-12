@@ -8,6 +8,7 @@ import {
   suggestStage, eventsForStage, yearRangeForStage, mergeTimeline, profileText,
   parseChapter, chapterMarkdown, daysSince, cryptoId, birthYear, nextBankQuestion,
   UNSORTED, FREE_QUESTION, isLocal, asrContext, applyRefined, PHOTO_QUESTION,
+  AUDIO_ONLY, pickQuote, tildePath,
 } from './core.js';
 
 // Personal details are entered on first use and stay in this browser; nothing about her is in the code.
@@ -37,7 +38,11 @@ const state = {
   openTimelineSrc: null,
   editing: null,
   chapterStream: {},
-  micError: '',
+  micError: null,   // {kind, text}: the mic wouldn't open; shown beside the mic with 再试一次
+  speechNote: '',   // live-recognition hiccup while recording continues; cleared when she speaks again
+  ending: false,    // the end-of-session choice is open
+  recap: null,      // what the session that just ended kept; shown once, then the start screen
+  justSaved: null,  // {id, n}: the answer just saved, acknowledged beside the save button for a few seconds
   asrStatus: null,  // local Qwen3-ASR service, or null when not installed/running
   pendingClips: [], // audio ids recorded for the answer being composed (already saved to disk)
   pendingPhotos: [], // photo ids shown during the answer being composed
@@ -51,6 +56,9 @@ const h = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<'
 const stageById = (id) => state.stages.find((s) => s.id === id) || state.stages[0];
 const answersFor = (pred) => state.turns.filter((t) => t.role === 'a' && pred(t)).sort((a, b) => a.ts - b.ts);
 const hasAI = () => !!ai.getKey();
+// The bank for this stage ran out: not a question, so it never takes the question's place.
+const BANK_DONE = '__bank_done__';
+const AFTER_BANK = '（题库问完后接着聊的）';
 const hometown = () => state.profile.birthplace || '家乡';
 /** Chinese has no spaces; wrap each clause so a line only breaks after punctuation. */
 const clauses = (text) => String(text ?? '').split(/(?<=[，、？。！；：…])/).map((c) => `<span class="clause">${h(c)}</span>`).join('');
@@ -108,6 +116,8 @@ async function boot() {
 
 function go(view, push = true) {
   state.view = view;
+  state.micError = null;
+  state.recap = null;
   if (push) location.hash = view;
   render();
   $app.focus({ preventScroll: true });
@@ -158,7 +168,7 @@ function stageBand(activeId, action) {
   return `<div class="band" role="group" aria-label="人生阶段">${state.stages.map((s) => {
     const n = answersFor((t) => t.stage === s.id).length;
     const cls = s.id === activeId ? 'on' : n ? 'done' : '';
-    return `<button class="band-seg ${cls}" data-action="${action}" data-stage="${s.id}" aria-pressed="${s.id === activeId}" title="${h(s.title)} · ${n ? `已聊 ${n} 段` : '还没聊'}"><span class="full">${h(s.title)}</span><span class="short" aria-hidden="true">${h(s.short || s.title)}</span></button>`;
+    return `<button class="band-seg ${cls}" data-action="${action}" data-stage="${s.id}" aria-pressed="${s.id === activeId}" title="${h(s.title)} · ${n ? `已聊 ${n} 段` : '还没聊'}"><span class="full">${h(s.title)}</span><span class="short" aria-hidden="true">${h(s.short || s.title)}</span>${n ? `<span class="n" aria-hidden="true">${n}</span>` : ''}</button>`;
   }).join('')}</div>`;
 }
 
@@ -172,61 +182,94 @@ function stageSelect(t) {
 
 // ---------- interview ----------
 function viewInterview() {
-  if (!state.session) return viewStart();
+  if (!state.session) return state.recap ? viewRecap() : viewStart();
   const stage = stageById(state.session.stage);
   const sessionAnswers = answersFor((t) => t.sessionId === state.session.id);
   const rec = !!state.voice;
-  const locked = state.questionBusy || !!state.busy;
+  const locked = state.questionBusy || !!state.busy || state.ending;
+  const firstTime = !state.turns.some((t) => t.role === 'a'); // explain the modes once; after the first answer they're known
 
   const questionBlock = state.free
     ? `<h1 class="q free">姥姥想起来的事</h1>
        <p class="q-sub">${clauses(`不用管问题，让姥姥想说什么就说什么。说完点保存${hasAI() ? '，AI 会把它归到对应的人生阶段，再顺着往下问' : '，先放进「待归类」，以后再归到对应阶段'}。`)}</p>
        <div class="pills"><button class="pill" data-action="cancel-free" ${rec ? 'disabled' : ''}>${icon('back')}回到原来的问题</button></div>`
+    : state.question === BANK_DONE && !state.questionBusy
+    ? `<div class="bank-done" role="status"><p><b>「${h(stage.title)}」的题库问完了。</b>点上面换一个人生阶段接着聊；也可以让姥姥想到什么说什么，录完照样点保存。</p></div>`
     : `<h1 class="q ${state.questionBusy ? 'loading' : ''}" id="question" aria-live="polite">${clauses(state.question)}</h1>
        <div class="pills">
          <button class="pill" data-action="speak" ${state.questionBusy ? 'disabled' : ''}>${icon('speak')}读给姥姥听</button>
          <button class="pill" data-action="other-question" ${locked || rec ? 'disabled' : ''}>${icon('refresh')}换个问题</button>
        </div>`;
 
-  return `<div class="interview">
+  return `<div class="interview ${state.ending ? 'is-ending' : ''}">
     <section class="work">
       <div class="work-top">
-        ${stageBand(stage.id, 'switch-stage')}
+        ${stageBand(state.free ? null : stage.id, 'switch-stage')}
       </div>
       ${questionBlock}
       ${thumbs(state.pendingPhotos, true)}
       <div class="rec">
         <div class="mic-col">
-          <button class="mic ${rec ? 'recording' : ''}" data-action="toggle-mic" aria-pressed="${rec}">
+          <button class="mic ${rec ? 'recording' : ''}" data-action="toggle-mic" aria-pressed="${rec}" aria-keyshortcuts="Space">
             ${icon(rec ? 'pause' : 'mic', 34)}<span>${rec ? '暂停' : state.draft.trim() || state.pendingClips.length ? '继续说' : '开始说'}</span>
           </button>
           <div class="mic-time" id="mic-time">${rec ? '0:00' : ''}</div>
+          ${state.free ? '' : `<button class="pill strong" data-action="free-memory" aria-keyshortcuts="F" ${locked ? 'disabled' : ''}>${icon('memory')}姥姥想起别的事</button>`}
         </div>
         <div class="well-col">
+          ${state.micError ? `<div class="mic-alert" role="alert"><p>${h(state.micError.text)}</p><button class="pill" data-action="mic-retry">${icon('mic')}再试一次</button></div>` : ''}
           <textarea id="answer-box" class="well ${rec ? 'live' : ''}" aria-label="姥姥说的话" placeholder="${rec ? '姥姥说的话会出现在这里…' : '点「开始说」录音，姥姥说的话会自动变成文字；也可以直接打字，随时能改。'}"></textarea>
-          <div class="interim ${state.micError ? 'error' : ''}" id="interim" role="status">${h(state.micError || state.interim)}</div>
+          <div class="interim ${state.speechNote ? 'error' : ''}" id="interim" role="status">${h(state.speechNote || state.interim)}</div>
           ${!speechSupport.recognition ? `<p class="mode-note">这个浏览器不能把语音直接转成文字（建议用 Chrome）。录音照常保存；文字可以打字，或点进文本框后按两下 <kbd>fn</kbd> 用 Mac 听写。</p>` : ''}
           <div class="actions">
             <button class="btn-primary" data-action="save-answer" ${locked ? 'disabled' : ''}>${state.free ? '保存这段回忆' : '保存，问下一个'}${icon('arrow')}</button>
-            <button class="pill quiet" data-action="clear-draft" ${rec ? 'disabled' : ''}>清空</button>
-            <span class="hint">⌘ + 回车 也能保存</span>
+            ${state.justSaved ? `<span class="saved-note" id="saved-note" role="status">已记下第 ${state.justSaved.n} 段 · <button class="link" data-action="edit-saved" data-id="${state.justSaved.id}">改一下</button></span>`
+              : `<button class="pill quiet" data-action="clear-draft" ${rec ? 'disabled' : ''}>清空</button>
+            <span class="hint keys"><kbd>空格</kbd> 录音 / 暂停 · ${state.free ? '' : '<kbd>F</kbd> 想起别的事 · '}<kbd>⌘</kbd> + <kbd>回车</kbd> 保存</span>`}
           </div>
-          ${state.free ? '' : `<div class="aside-action"><button class="pill strong" data-action="free-memory" ${locked ? 'disabled' : ''}>${icon('memory')}姥姥想起别的事</button><span class="hint">她说起了和问题无关的事？点这里单独记下，不用管问题。</span></div>`}
-          ${state.asrStatus?.ready ? `<p class="hint mode-hint">本机精修已连接：保存后会用录音自动校正文字。</p>` : ''}
-          ${!hasAI() && !state.free ? `<p class="hint mode-hint">现在按题库提问。在「设置」里填上 Claude 密钥，AI 就会接着姥姥的话追问。</p>` : ''}
+          ${firstTime ? `<div class="first-hints">
+            ${state.free ? '' : '<p class="hint">姥姥说起了和问题无关的事？点左边「姥姥想起别的事」单独记下，不用管问题。</p>'}
+            ${state.asrStatus?.ready ? '<p class="hint">本机精修已连接：保存后会用录音自动校正文字。</p>' : ''}
+            ${!hasAI() ? '<p class="hint">现在按题库提问。在「设置」里填上 Claude 密钥，AI 就会接着姥姥的话追问。</p>' : ''}
+          </div>` : ''}
         </div>
       </div>
       ${state.busy ? `<p class="busy"><span class="spinner"></span>${h(state.busy)}</p>` : ''}
-      <div class="session-end">
+      ${state.ending ? endChoice() : `<div class="session-end">
         <div><b>今天聊完了？</b><span class="hint">结束后会把这次聊的内容存好，${hasAI() ? '整理进人生时间线，' : ''}并自动下载一份备份。</span></div>
         <button class="pill" data-action="end-session" ${state.busy || rec ? 'disabled' : ''}>结束这次访谈</button>
-      </div>
+      </div>`}
       ${sessionAnswers.length ? `<section class="log" aria-label="这次记下的">
         <h2 class="log-title">这次记下的 · ${sessionAnswers.length} 段</h2>
         ${sessionAnswers.slice().reverse().map(logItem).join('')}
       </section>` : ''}
     </section>
     ${eraAside(stage)}
+  </div>`;
+}
+
+/** Something typed, recorded or shown that isn't an answer yet. */
+function hasUnsaved() {
+  const box = document.getElementById('answer-box');
+  if (box) state.draft = box.value;
+  return !!(state.draft.trim() || state.pendingClips.length || state.pendingPhotos.length);
+}
+
+/** Ending with an unsaved answer: decide in place, never by a browser dialog. */
+function endChoice() {
+  const text = state.draft.trim();
+  const preview = text.length > 60 ? `${text.slice(0, 60)}…` : text;
+  return `<div class="session-end ending" role="group" aria-labelledby="end-title">
+    <div class="end-copy">
+      <b id="end-title">这段还没保存</b>
+      ${preview ? `<q class="end-quote">${h(preview)}</q>` : `<span class="hint">只有录音，还没有文字。</span>`}
+      <span class="hint">${preview ? '不保存的话，这段的文字不留，录音也不会放进回忆录。' : '不保存的话，这段录音不会放进回忆录。'}</span>
+    </div>
+    <div class="end-choices">
+      <button class="btn-primary small" data-action="end-save" id="end-first">保存并结束</button>
+      <button class="pill danger" data-action="end-discard">不保存，结束</button>
+      <button class="pill quiet" data-action="end-cancel">还没聊完</button>
+    </div>
   </div>`;
 }
 
@@ -245,18 +288,38 @@ function logItem(t) {
     <div class="log-tools">
       ${t.audioIds?.length ? `<button class="link" data-action="play" data-audio="${t.audioIds.join(',')}">${icon('play', 16)}听原声</button>` : ''}
       <button class="link" data-action="edit" data-id="${t.id}">${icon('edit', 16)}改文字</button>
-      <button class="link danger" data-action="delete-answer" data-id="${t.id}">删除这段</button>
       ${t.refined && t.refined !== t.text ? `<button class="link" data-action="use-refined" data-id="${t.id}">改用精修稿</button>` : t.refined ? '<span class="hint">已精修</span>' : ''}
       ${t.free ? stageSelect(t) : ''}
+      <button class="link danger" data-action="delete-answer" data-id="${t.id}">删除这段</button>
     </div>
   </article>`;
+}
+
+/** The close of a session: what was kept, one line of hers, where the backup went, where to pick up. */
+function viewRecap() {
+  const r = state.recap;
+  const minutes = r.audioMs >= 60_000 ? `录了 ${Math.round(r.audioMs / 60_000)} 分钟的声音` : r.audioMs ? '录了不到一分钟的声音' : '';
+  const kept = [`记下 ${r.count} 段`, minutes, r.added ? `人生时间线新增 ${r.added} 条` : ''].filter(Boolean).join('，');
+  return `<div class="start recap">
+    <h1 class="display">今天聊完了</h1>
+    ${r.quote ? `<figure class="recap-quote"><blockquote>${clauses(r.quote)}</blockquote><figcaption>${h(state.profile.name)}今天说的</figcaption></figure>` : ''}
+    <p class="lede">${h(kept)}。${r.stages.length ? `聊到了${r.stages.map((s) => `「${h(s)}」`).join('')}。` : ''}</p>
+    <dl class="recap-facts">
+      <div><dt>备份</dt><dd>${r.file ? `<b>${h(r.file)}</b>，在这台电脑的「下载」文件夹里。` : r.file === '' ? '已经下载到这台电脑的「下载」文件夹里。' : '这次没能自动下载备份，请到「设置」里手动备份一份。'}${r.archived ? `另存了一份在「${h(r.archived)}」。` : ''}隔几天把完整备份发给家人存一份。</dd></div>
+      <div><dt>下次</dt><dd>建议从「${h(stageById(r.next).title)}」接着聊。</dd></div>
+    </dl>
+    <div class="pills">
+      <button class="btn-primary" data-action="recap-done">好${icon('arrow')}</button>
+      <button class="pill" data-action="goto" data-view="book">看看回忆录</button>
+    </div>
+  </div>`;
 }
 
 function viewSetup() {
   const p = state.profile;
   return `<div class="start">
     <h1 class="display">先认识一下${h(p.name)}</h1>
-    <p class="lede">填好出生日期和家乡，右边的「那一年」才能找到她那个年纪发生的事。只存在这台电脑上。</p>
+    <p class="lede">填好出生日期和家乡，访谈时旁边的「那一年」才能列出她那个年纪发生的事。这些只存在这台电脑上。</p>
     <div class="setup">
       <div class="field"><label for="s-name">称呼</label><input id="s-name" value="${h(p.name)}"></div>
       <div class="field"><label for="s-birth">出生日期</label><input id="s-birth" type="date" min="1900-01-01" max="2000-12-31"></div>
@@ -415,7 +478,7 @@ function chapterBlock(stage) {
           <div class="actions"><button class="btn-primary small" data-action="save-edit" data-id="${a.id}">保存修改</button><button class="pill quiet" data-action="cancel-edit">取消</button></div></div>`;
       }
       return `<div class="qa ${a.noprint ? 'noprint' : ''}" data-action="toggle-src" data-key="${key}" tabindex="0">${a.free ? '' : `<p class="qa-q">${h(a.question)}</p>`}<p>${h(a.text)}</p>${figures(a.photoIds)}</div>`
-        + (state.openSources === key ? `<div class="para-tools no-print"><button class="link" data-action="edit" data-id="${a.id}">${icon('edit', 16)}改文字</button><button class="link" data-action="answer-noprint" data-id="${a.id}">${a.noprint ? '恢复打印' : '这段不印'}</button><button class="link danger" data-action="delete-answer" data-id="${a.id}">删除这段</button>${a.audioIds?.length ? `<button class="link" data-action="play" data-audio="${a.audioIds.join(',')}">${icon('play', 16)}听原声</button>` : ''}</div>` : '');
+        + (state.openSources === key ? `<div class="para-tools no-print"><button class="link" data-action="edit" data-id="${a.id}">${icon('edit', 16)}改文字</button><button class="link" data-action="answer-noprint" data-id="${a.id}">${a.noprint ? '恢复打印' : '这段不印'}</button>${a.audioIds?.length ? `<button class="link" data-action="play" data-audio="${a.audioIds.join(',')}">${icon('play', 16)}听原声</button>` : ''}<button class="link danger" data-action="delete-answer" data-id="${a.id}">删除这段</button></div>` : '');
     }).join('');
   }
   return `<section class="chapter">
@@ -445,6 +508,18 @@ function viewSettings() {
     <h1 class="display">设置</h1>
     <div class="settings-grid">
       <section class="panel">
+        <h2>备份</h2>
+        <p class="${state.persisted ? 'hint' : 'warn'}">${state.persisted
+          ? '存储保护：已开启。浏览器不会自动清理这里的内容。'
+          : '存储保护：还没开启。电脑磁盘紧张时，浏览器有可能自动清理网站数据。把这个网址<b>加进书签</b>，或者在 Chrome 右上角菜单里选「安装为应用」，Chrome 一般就会开启保护；之后刷新这一页看看。'}</p>
+        <p>所有内容存在这台电脑的浏览器里。清理浏览器数据或换电脑会丢，所以要常备份，并把备份文件发给家人存一份。每次结束访谈会自动下载一份文字备份。${state.asrStatus ? `装了本机精修时，每段录音和每次的备份还会另存一份普通文件在「${h(tildePath(state.asrStatus.archive || '~/姥姥的回忆录'))}」。` : ''}</p>
+        <div class="stack">
+          <button class="pill" data-action="quick-backup">${icon('download')}文字备份（.json，很小）</button>
+          <button class="pill" data-action="full-backup">${icon('download')}完整备份含录音（.zip）</button>
+          <label class="pill" for="restore-file">从备份恢复…</label><input id="restore-file" type="file" accept=".json,.zip" hidden>
+        </div>
+      </section>
+      <section class="panel">
         <h2>AI 助手（可选）</h2>
         <p>${key ? '已开启。密钥只存在这台电脑的这个浏览器里。' : '不填也能用：按题库提问、录音、存档。填上 Claude 密钥后，AI 会接着姥姥的话追问、整理人生时间线、写成文章。'}</p>
         <div class="field"><label for="key">Claude 密钥</label><input id="key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…" value="${h(key)}"></div>
@@ -457,25 +532,13 @@ function viewSettings() {
         <div class="field"><label for="p-birth">出生日期</label><input id="p-birth" type="date" value="${h(p.birthDate)}"></div>
         <div class="field"><label for="p-place">出生地 / 主要生活的地方</label><input id="p-place" value="${h(p.birthplace)}"></div>
         <div class="field"><label for="p-places">家人补充（搬过家、在哪工作过，可不填）</label><textarea id="p-places" rows="3">${h(p.places)}</textarea></div>
-        <button class="btn-primary small" data-action="save-profile">保存</button>
+        <button class="pill" data-action="save-profile">保存</button>
       </section>
       <section class="panel">
         <h2>本机语音精修</h2>
         <p>${state.asrStatus?.ready ? `已连接（${h(String(state.asrStatus.model).replace('Qwen/', ''))}）。每段回答保存后，会用这台电脑上的开源 Qwen3-ASR 按录音重新识别，校正文字；录音不离开这台电脑。`
           : state.asrStatus ? '服务已启动，模型正在加载，稍等一会儿。' : '未检测到。需要在这台电脑上运行一次「asr / 安装.command」。没有它也能用，只是文字以浏览器的实时识别为准。'}</p>
         ${state.asrStatus?.ready ? '<button class="pill" data-action="refine-all">用录音精修以前的回答</button>' : '<button class="pill" data-action="check-asr">重新检测</button>'}
-      </section>
-      <section class="panel">
-        <h2>备份</h2>
-        <p class="${state.persisted ? 'hint' : 'mode-note'}">${state.persisted
-          ? '存储保护：已开启。浏览器不会自动清理这里的内容。'
-          : '存储保护：还没开启。电脑磁盘紧张时，浏览器有可能自动清理网站数据。把这个网址<b>加进书签</b>，或者在 Chrome 右上角菜单里选「安装为应用」，Chrome 一般就会开启保护；之后刷新这一页看看。'}</p>
-        <p>所有内容存在这台电脑的浏览器里。清理浏览器数据或换电脑会丢，所以要常备份，并把备份文件发给家人存一份。每次结束访谈会自动下载一份文字备份。${state.asrStatus ? `装了本机精修时，每段录音和每次的备份还会另存一份普通文件在「${h(state.asrStatus.archive || '~/姥姥的回忆录')}」。` : ''}</p>
-        <div class="stack">
-          <button class="pill" data-action="quick-backup">${icon('download')}文字备份（.json，很小）</button>
-          <button class="pill" data-action="full-backup">${icon('download')}完整备份含录音（.zip）</button>
-          <label class="pill" for="restore-file">从备份恢复…</label><input id="restore-file" type="file" accept=".json,.zip" hidden>
-        </div>
       </section>
       <section class="panel">
         <h2>清空访谈内容</h2>
@@ -552,6 +615,7 @@ function viewHelp() {
     <h2>小提示</h2>
     <ul>
       <li>姥姥累了就停，下次接着聊。她说「不记得了」就换个话题。</li>
+      <li>键盘快捷键（光标不在文本框里时）：<kbd>空格</kbd> 开始 / 暂停录音，<kbd>F</kbd> 记「姥姥想起别的事」，<kbd>⌘</kbd> + <kbd>回车</kbd> 保存。</li>
       <li>录音和内容都只存在这台电脑上。用 AI 时，发给 AI 的只有文字，不发录音。</li>
     </ul>
   </div>`;
@@ -577,7 +641,7 @@ const actions = {
     if (answersFor((t) => t.stage === stage.id).length) await askNext(); else setQuestion(stage.opening);
     render();
   },
-  speak: () => speak(state.question),
+  speak: () => { if (state.question !== BANK_DONE) speak(state.question); },
   'other-question': () => askNext(state.question),
   'use-cue': (el) => { state.free = false; setQuestion(el.dataset.q); render(); },
   'free-memory': async () => {
@@ -704,6 +768,23 @@ const actions = {
   'clear-draft': () => { state.draft = ''; state.interim = ''; render(); },
   'save-answer': saveAnswer,
   'end-session': endSession,
+  'end-save': async () => { state.ending = false; await saveAnswerOnly(); await finishSession(); },
+  'end-discard': async () => { state.ending = false; await discardUnsaved(); await finishSession(); },
+  'end-cancel': () => {
+    state.ending = false;
+    render();
+    document.querySelector('[data-action="end-session"]')?.focus();
+  },
+  'mic-retry': () => startMic(),
+  'edit-saved': (el) => {
+    state.editing = el.dataset.id;
+    state.justSaved = null;
+    render();
+    const box = document.getElementById(`edit-${el.dataset.id}`);
+    box?.scrollIntoView({ block: 'center' });
+    box?.focus({ preventScroll: true });
+  },
+  'recap-done': () => { state.recap = null; render(); window.scrollTo({ top: 0 }); },
   play: (el) => playAudio(el.dataset.audio),
   edit: (el) => { state.editing = el.dataset.id; render(); },
   'cancel-edit': () => { state.editing = null; render(); },
@@ -768,14 +849,20 @@ function setQuestion(q) {
 
 function bankQuestion(stage, current) {
   const asked = answersFor((t) => t.stage === stage.id).map((t) => t.question);
-  return nextBankQuestion(stage, asked, current)
-    || '这个阶段的题库问完了。可以换一个人生阶段，或者让姥姥想到什么说什么。';
+  return nextBankQuestion(stage, asked, current) || BANK_DONE;
 }
 
 async function askNext(avoidQuestion, photo) {
   const stage = stageById(state.session.stage);
   const prev = state.question;
-  if (!hasAI()) { setQuestion(photo ? PHOTO_QUESTION : bankQuestion(stage, prev)); render(); return; }
+  if (!hasAI()) {
+    let q = photo ? PHOTO_QUESTION : bankQuestion(stage, prev);
+    // 换个问题 on the last unasked one: keep it rather than declare the bank empty.
+    if (q === BANK_DONE && avoidQuestion && prev && prev !== BANK_DONE) { toast('这个阶段的题库里没有别的问题了。'); q = prev; }
+    setQuestion(q);
+    render();
+    return;
+  }
   state.questionBusy = true;
   state.question = '';
   render();
@@ -813,23 +900,33 @@ async function startMic() {
     onText: (finalText, interim) => {
       state.draft = finalText;
       state.interim = interim;
+      state.speechNote = '';
       const box = document.getElementById('answer-box');
       if (box) { box.value = finalText; box.scrollTop = box.scrollHeight; }
       const im = document.getElementById('interim');
-      if (im) im.textContent = interim;
+      if (im) { im.textContent = interim; im.classList.remove('error'); }
       saveDraftSoon();
     },
     onClip: (clip) => saveClip(clip),
-    onError: (msg) => {
-      state.micError = msg;
-      const im = document.getElementById('interim');
-      if (im) { im.textContent = msg; im.classList.add('error'); }
+    onError: (problem) => {
+      if (problem.kind === 'speech') {
+        state.speechNote = problem.text;
+        const im = document.getElementById('interim');
+        if (im) { im.textContent = problem.text; im.classList.add('error'); }
+        return;
+      }
+      state.micError = problem;
     },
   });
-  state.micError = '';
+  state.micError = null;
+  state.speechNote = '';
   const box = document.getElementById('answer-box');
   if (box) state.draft = box.value;
-  if (!(await v.start(state.draft))) return;
+  if (!(await v.start(state.draft))) {
+    render();
+    document.querySelector('[data-action="mic-retry"]')?.focus();
+    return;
+  }
   state.voice = v;
   state.recordingSince = Date.now();
   render();
@@ -849,6 +946,7 @@ async function stopMic() {
   const { text } = await v.stop();
   if (text) state.draft = text;
   state.interim = '';
+  state.speechNote = '';
   saveDraftSoon(0);
   render();
 }
@@ -902,6 +1000,8 @@ async function checkASR() {
   if (before !== !!state.asrStatus?.ready && !isTyping()) render();
 }
 
+/** Elements where Space or a letter already means something. */
+const takesKeys = (el) => !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT|BUTTON|A|SUMMARY)$/.test(el.tagName) || el.matches?.('[data-action][tabindex]'));
 const isTyping = () => document.activeElement?.tagName === 'TEXTAREA' || document.activeElement?.tagName === 'INPUT';
 
 const refining = new Map();
@@ -955,8 +1055,8 @@ async function saveAnswerOnly() {
   const turn = {
     id: `a_${cryptoId()}`, role: 'a', sessionId: state.session.id,
     stage: free ? UNSORTED : state.session.stage,
-    question: free ? FREE_QUESTION : state.question,
-    text: text || '（只有录音，文字待补）', ts: Date.now(), audioIds, free,
+    question: free ? FREE_QUESTION : state.question === BANK_DONE ? AFTER_BANK : state.question,
+    text: text || AUDIO_ONLY, ts: Date.now(), audioIds, free,
     photoIds: [...state.pendingPhotos],
   };
   state.pendingPhotos = [];
@@ -969,11 +1069,28 @@ async function saveAnswerOnly() {
   return turn;
 }
 
+let savedTimer;
+/** Acknowledge a save right where the operator is looking, then get out of the way. */
+function acknowledge(turn) {
+  state.justSaved = { id: turn.id, n: answersFor((t) => t.sessionId === turn.sessionId).length };
+  clearTimeout(savedTimer);
+  savedTimer = setTimeout(() => {
+    state.justSaved = null;
+    if (!isTyping() && document.getElementById('saved-note')) render();
+  }, 8000);
+}
+
 async function saveAnswer() {
+  if (state.ending) return;
   const free = state.free;
   const turn = await saveAnswerOnly();
-  if (!turn) return toast('还没有内容。先录音或者打字。', true);
-  const text = turn.draft === '（只有录音，文字待补）' ? '' : turn.text;
+  if (!turn) {
+    return state.justSaved
+      ? toast(`刚才那段已经记下了（第 ${state.justSaved.n} 段）。`)
+      : toast('还没有内容。先录音或者打字。', true);
+  }
+  acknowledge(turn);
+  const text = turn.draft === AUDIO_ONLY ? '' : turn.text;
   if (!free) return askNext();
 
   state.free = false;
@@ -1000,7 +1117,7 @@ async function saveAnswer() {
   await askNext(); // AI follows her thread first, then drifts back to the stage
 }
 
-const realText = (t) => t.text && t.text !== '（只有录音，文字待补）';
+const realText = (t) => t.text && t.text !== AUDIO_ONLY;
 
 /** Extract life events from these answers into the timeline, then mark them as done. Returns how many were added. */
 async function extractInto(answers) {
@@ -1040,10 +1157,40 @@ async function extractAllPending() {
   }
 }
 
-async function endSession() {
-  if ((state.draft.trim() || state.pendingClips.length) && confirm('还有没保存的这段话（录音已经存好了），先保存再结束吗？')) {
-    await saveAnswerOnly();
+function endSession() {
+  if (state.ending || finishing) return;
+  state.micError = null;
+  if (hasUnsaved()) {
+    state.ending = true;
+    render();
+    const first = document.getElementById('end-first');
+    first?.scrollIntoView({ block: 'nearest' });
+    first?.focus({ preventScroll: true });
+    return;
   }
+  return finishSession();
+}
+
+/** Drop the answer being composed. Its clips stay in the audio store (and any archive copy) but belong to no answer, so the next session can't pick them up. */
+async function discardUnsaved() {
+  clearTimeout(draftTimer);
+  state.draft = '';
+  state.interim = '';
+  state.pendingClips = [];
+  state.pendingPhotos = [];
+  await db.setKV('draft', '');
+  await db.setKV('pendingClips', []);
+  await db.setKV('pendingPhotos', []);
+}
+
+let finishing = false;
+async function finishSession() {
+  if (finishing) return;
+  finishing = true;
+  try { await closeSession(); } finally { finishing = false; }
+}
+
+async function closeSession() {
   const sessionAnswers = answersFor((t) => t.sessionId === state.session.id);
   let added = 0;
   if (sessionAnswers.length && hasAI()) {
@@ -1063,14 +1210,30 @@ async function endSession() {
   state.free = false;
   await db.setKV('currentQuestion', '');
   if (sessionAnswers.length) {
-    await downloadQuickBackup();
+    // A cached older backup.js returns nothing, so success is "didn't throw"; the name is a bonus.
+    let file = null;
+    try { file = (await downloadQuickBackup()) || ''; } catch { /* recap says so */ }
+    let archived = '';
     if (state.asrStatus) {
-      collect().then((d) => asr.archive(new Blob([JSON.stringify(d, null, 1)], { type: 'application/json' }), 'backup',
-        `backup-${localStamp()}.json`)).catch(() => {});
+      try {
+        const d = await collect();
+        await asr.archive(new Blob([JSON.stringify(d, null, 1)], { type: 'application/json' }), 'backup', `backup-${localStamp()}.json`);
+        archived = `${tildePath(state.asrStatus.archive || '~/姥姥的回忆录')}/备份`;
+      } catch { /* the download is the backup that counts */ }
     }
-    toast(`这次记下 ${sessionAnswers.length} 段${hasAI() ? `，时间线新增 ${added} 条` : ''}。备份已自动下载。`);
+    let audioMs = 0;
+    for (const id of sessionAnswers.flatMap((t) => t.audioIds || [])) audioMs += (await db.get('audio', id))?.durationMs || 0;
+    const stages = [...new Set(sessionAnswers.map((t) => t.stage).filter((s) => s !== UNSORTED))].map((s) => stageById(s).title);
+    state.recap = {
+      count: sessionAnswers.length, audioMs, added, file, archived, stages,
+      quote: pickQuote(sessionAnswers.map((t) => t.text)),
+      next: suggestStage(state.stages, state.turns),
+    };
+    renderBackupPill();
   }
   render();
+  window.scrollTo({ top: 0 });
+  $app.focus({ preventScroll: true });
 }
 
 async function findCues() {
@@ -1150,12 +1313,15 @@ function toast(msg, error = false) {
 }
 
 // ---------- events ----------
+const MODE_CHANGES = new Set(['switch-stage', 'start-session', 'start-free', 'free-memory', 'cancel-free', 'use-cue', 'other-question', 'save-answer', 'end-session']);
 document.addEventListener('click', (e) => {
   const tab = e.target.closest('.tab');
   if (tab) return go(tab.dataset.view);
   const el = e.target.closest('[data-action]');
   if (!el || el.disabled) return;
   const fn = actions[el.dataset.action];
+  // A mic error belongs to the moment it happened; moving on to another question or mode clears it.
+  if (MODE_CHANGES.has(el.dataset.action)) state.micError = null;
   if (fn) Promise.resolve(fn(el)).catch((err) => toast(ai.explain(err), true));
 });
 
@@ -1200,7 +1366,14 @@ document.addEventListener('change', async (e) => {
 });
 
 document.addEventListener('keydown', (e) => {
-  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && state.view === 'interview' && state.session) {
+  if (e.key === 'Escape' && state.ending) { e.preventDefault(); actions['end-cancel'](); return; }
+  // One-key shortcuts while interviewing, only when nothing else would take the key.
+  if (state.view === 'interview' && state.session && !e.metaKey && !e.ctrlKey && !e.altKey && !e.repeat && !takesKeys(document.activeElement)) {
+    const target = e.code === 'Space' ? 'toggle-mic' : e.code === 'KeyF' ? 'free-memory' : null;
+    const btn = target && document.querySelector(`[data-action="${target}"]`);
+    if (btn) { e.preventDefault(); if (!btn.disabled) btn.click(); return; }
+  }
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && state.view === 'interview' && state.session && !state.ending) {
     e.preventDefault();
     saveAnswer();
   }

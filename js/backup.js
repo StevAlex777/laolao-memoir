@@ -41,8 +41,10 @@ function download(blob, filename) {
 
 export async function downloadQuickBackup() {
   const data = await collect();
-  download(new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' }), `姥姥回忆录-备份-${stamp()}.json`);
+  const name = `姥姥回忆录-备份-${stamp()}.json`;
+  download(new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' }), name);
   await db.setKV('lastBackup', data.exportedAt);
+  return name;
 }
 
 export async function downloadFullBackup() {

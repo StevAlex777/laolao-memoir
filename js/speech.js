@@ -2,6 +2,8 @@
 // The recording is cut into ~1-minute clips; each clip is handed over (and saved) the moment it
 // ends, so a crash or closed tab loses at most the last minute. Clips stay on this computer.
 
+import { micProblem } from './core.js';
+
 const Recognition = globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition;
 export const CLIP_MS = 60_000;
 
@@ -18,7 +20,7 @@ function pickMime() {
 }
 
 export class VoiceCapture {
-  /** @param {{onText:(finalText:string, interim:string)=>void, onError:(msg:string)=>void, onClip:(clip:{blob:Blob,mime:string,durationMs:number})=>void}} cb */
+  /** @param {{onText:(finalText:string, interim:string)=>void, onError:(problem:{kind:string,text:string})=>void, onClip:(clip:{blob:Blob,mime:string,durationMs:number})=>void}} cb */
   constructor(cb) {
     this.cb = cb;
     this.active = false;
@@ -33,9 +35,7 @@ export class VoiceCapture {
         this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
       } catch (e) {
         this.active = false;
-        this.cb.onError(e.name === 'NotAllowedError'
-          ? '浏览器没有麦克风权限。请点地址栏左边的图标，允许使用麦克风，然后再试。'
-          : `打不开麦克风：${e.message}`);
+        this.cb.onError(micProblem(e));
         return false;
       }
       this.#startClip();
@@ -87,9 +87,11 @@ export class VoiceCapture {
     };
     r.onerror = (e) => {
       if (e.error === 'no-speech' || e.error === 'aborted') return;
-      if (e.error === 'not-allowed') this.cb.onError('浏览器不允许语音识别。录音仍在继续；文字可以手动输入，或在文本框里按两下 fn 用 Mac 自带听写。');
-      else if (e.error === 'network') this.cb.onError('语音识别连不上网络服务。录音仍在继续，文字之后可以用录音精修。');
-      else this.cb.onError(`语音识别出错（${e.error}），录音仍在继续。`);
+      // Recording carries on; only the live draft text is affected.
+      const text = e.error === 'not-allowed' ? '浏览器不允许语音识别。录音仍在继续；文字可以手动输入，或在文本框里按两下 fn 用 Mac 自带听写。'
+        : e.error === 'network' ? '语音识别连不上网络服务。录音仍在继续，文字之后可以用录音精修。'
+        : `语音识别出错（${e.error}），录音仍在继续。`;
+      this.cb.onError({ kind: 'speech', text });
     };
     // Chrome ends recognition after a pause or a few minutes; keep it going while recording,
     // with a short delay so rapid restarts don't get throttled.
