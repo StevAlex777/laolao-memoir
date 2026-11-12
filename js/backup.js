@@ -20,6 +20,7 @@ export async function collect() {
     version: BACKUP_VERSION,
     exportedAt: new Date().toISOString(),
     profile: await db.getKV('profile', {}),
+    webCues: await db.getKV('webCues', {}),
     sessions: await db.all('sessions'),
     turns: await db.all('turns'),
     timeline: await db.all('timeline'),
@@ -94,5 +95,6 @@ export async function restore(file) {
     for (const a of audio) await db.put('audio', a);
   }
   await db.setKV('profile', data.profile);
+  if (data.webCues) await db.setKV('webCues', data.webCues);
   return { turns: data.turns.length, audio: audio.length, photos: Object.keys(photoBlobs).length };
 }

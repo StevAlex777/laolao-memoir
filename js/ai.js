@@ -8,7 +8,10 @@ import {
   CLASSIFY_SYSTEM, classifyTool, classifyUserMessage, PHOTO_NOTE,
 } from './core.js';
 
-export const MODEL = 'claude-opus-5-5';
+// Everyday work (follow-up questions, filing memories, timeline, era search) uses Sonnet 5.5;
+// writing chapters, rare and most dependent on prose quality, uses Opus 5.5.
+export const MODEL = 'claude-sonnet-5-5';
+export const WRITER_MODEL = 'claude-opus-5-5';
 const KEY_STORAGE = 'laolao-memoir.apiKey';
 
 // Server-side refusal fallback: if a request is declined, the API retries it on a
@@ -163,7 +166,7 @@ export async function findCues(ctx) {
 /** Stream a chapter in her voice with [[answer-id]] citations per paragraph. */
 export async function writeChapter(ctx, onDelta) {
   const stream = (await client()).beta.messages.stream({
-    model: MODEL,
+    model: WRITER_MODEL,
     max_tokens: 64000,
     ...FALLBACK,
     output_config: { effort: 'high' },

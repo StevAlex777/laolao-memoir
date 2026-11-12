@@ -87,6 +87,7 @@ async function boot() {
   state.turns = await db.all('turns');
   state.timeline = await db.all('timeline');
   state.chapters = await db.all('chapters');
+  state.webCues = (await db.getKV('webCues')) || {}; // paid web searches are kept, not repeated
   const sessions = await db.all('sessions');
   state.session = sessions.find((s) => !s.endedAt) || null;
   if (state.session) {
@@ -300,7 +301,7 @@ function eraAside(stage) {
     ${web.map((c) => cue(c, true)).join('')}
     ${offline.map((c) => cue(c, false)).join('') || '<p class="era-note">这个阶段暂无内置资料。</p>'}
     ${hasAI()
-      ? `<button class="pill" data-action="find-cues" ${state.cueBusy ? 'disabled' : ''}>${state.cueBusy ? '<span class="spinner"></span>正在查找，约半分钟' : `${icon('search')}上网找${h(hometown())}当年的事`}</button>`
+      ? `<button class="pill" data-action="find-cues" ${state.cueBusy ? 'disabled' : ''}>${state.cueBusy ? '<span class="spinner"></span>正在查找，约半分钟' : `${icon('search')}上网找${h(hometown())}当年的事`}</button><p class="era-note">每次大约一块钱，找到的资料会一直留在这里。</p>`
       : `<p class="era-note">填上密钥后，可以上网找更多${h(hometown())}当年的事。</p>`}
   </aside>`;
 }
@@ -441,7 +442,7 @@ function viewSettings() {
         <p>${key ? '已开启。密钥只存在这台电脑的这个浏览器里。' : '不填也能用：按题库提问、录音、存档。填上 Claude 密钥后，AI 会接着姥姥的话追问、整理人生时间线、写成文章。'}</p>
         <div class="field"><label for="key">Claude 密钥</label><input id="key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…" value="${h(key)}"></div>
         <div class="actions"><button class="btn-primary small" data-action="save-key">保存并检查</button>${key ? '<button class="pill quiet danger" data-action="remove-key">删除密钥</button>' : ''}</div>
-        <p class="hint">每次 AI 追问大约两毛钱人民币，写一章大约一两块钱。给密钥设好每月消费上限，就不用担心超支。</p>
+        <p class="hint">追问、整理用 Sonnet 5.5，每次 AI 追问大约一毛钱人民币；「写成文章」用更擅长文笔的 Opus 5.5，一章大约一两块钱；「上网找」每次大约一块钱。给密钥设好每月消费上限，就不用担心超支。</p>
       </section>
       <section class="panel">
         <h2>姥姥的信息</h2>
@@ -986,10 +987,14 @@ async function findCues() {
   render();
   try {
     const { cues, dropped } = await ai.findCues({ profile: state.profile, from, to, stageTitle: stage.title, timeline: state.timeline });
-    state.webCues[stage.id] = cues.map((c) => ({
+    const found = cues.map((c) => ({
       year: c.year, region: c.region, title: c.title, summary: c.summary, cue: c.question,
       source: { title: c.source_title, url: c.source_url },
     }));
+    // Add to what earlier searches found for this stage, skipping repeats of the same source.
+    const prev = state.webCues[stage.id] || [];
+    state.webCues[stage.id] = [...prev, ...found.filter((c) => !prev.some((p) => p.source.url === c.source.url))];
+    await db.setKV('webCues', state.webCues);
     toast(cues.length ? `找到 ${cues.length} 条${dropped ? `（另有 ${dropped} 条找不到可靠出处，已丢弃）` : ''}。` : '这次没找到有可靠出处的资料，可以稍后再试。');
   } catch (e) {
     toast(ai.explain(e), true);
