@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-11-09T00:00:00Z",
+  "generatedAt": "2026-11-12T23:06:18Z",
   "title": "Design System: 姥姥的回忆录",
   "extensions": {
     "colorMeta": {
@@ -168,6 +168,21 @@
           "oklch(84% 0.096 32)",
           "oklch(95% 0.072 32)"
         ]
+      },
+      "placeholder": {
+        "role": "neutral",
+        "displayName": "Placeholder Ink",
+        "canonical": "oklch(50.6% 0.018 60)",
+        "tonalRamp": [
+          "oklch(15% 0.010 60)",
+          "oklch(26% 0.013 60)",
+          "oklch(38% 0.016 60)",
+          "oklch(49% 0.018 60)",
+          "oklch(61% 0.018 60)",
+          "oklch(72% 0.016 60)",
+          "oklch(84% 0.013 60)",
+          "oklch(95% 0.010 60)"
+        ]
       }
     },
     "typographyMeta": {
@@ -331,6 +346,30 @@
       "description": "Labelled field on a settings panel.",
       "html": "<div class=\"ds-panel\"><label class=\"ds-field\"><span>Claude 密钥</span><input class=\"ds-input\" placeholder=\"sk-ant-...\"></label></div>",
       "css": ".ds-panel{background:var(--slip-hi);border:2px solid var(--iron);border-radius:24px;padding:1.5rem 1.6rem;font-family:var(--ui);color:var(--iron)}.ds-field{display:grid;gap:.3rem}.ds-field span{font-weight:600;font-size:.88rem}.ds-input{border:1.5px solid var(--iron);border-radius:14px;padding:.6rem .85rem;background:var(--slip);font:inherit;color:inherit;caret-color:var(--ochre)}.ds-input:focus-visible{outline:3px solid var(--ochre);outline-offset:2px}"
+    },
+    {
+      "name": "End Choice",
+      "kind": "custom",
+      "refersTo": "end-choice",
+      "description": "Ending a session with an unsaved answer: the end bar becomes a three-way choice in place.",
+      "html": "<div class=\"ds-end\"><div class=\"ds-end-copy\"><b>这段还没保存</b><q>那时候家里穷，冬天就靠一个煤火炉子。</q><span>不保存的话，这段的文字不留，录音也不会放进回忆录。</span></div><div class=\"ds-end-choices\"><button class=\"ds-end-save\">保存并结束</button><button class=\"ds-end-drop\">不保存，结束</button><button class=\"ds-end-cancel\">还没聊完</button></div></div>",
+      "css": ".ds-end{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:1rem;padding:1rem 1.2rem;border:2px solid var(--iron,#2a1d16);border-radius:18px;background:var(--slip-hi,#fbfaf7);color:var(--iron,#2a1d16);font-family:-apple-system,'PingFang SC',sans-serif}.ds-end-copy{display:grid;gap:.3rem;flex:1 1 18rem}.ds-end-copy b{font-family:'LXGW WenKai','Kaiti SC',serif;font-weight:400;font-size:1.15rem}.ds-end-copy q{font-family:'Noto Serif SC','Songti SC',serif;font-size:1.05rem;line-height:1.7;quotes:'「' '」'}.ds-end-copy span{font-size:.8rem;color:#4f453d}.ds-end-choices{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center}.ds-end-choices button{border-radius:999px;cursor:pointer;font:inherit}.ds-end-save{background:#9c5a24;color:#fff;border:0;padding:.55rem 1.2rem;font-weight:700;box-shadow:0 6px 14px rgba(124,69,24,.25)}.ds-end-save:hover{background:#7d4518}.ds-end-drop{border:2px solid #2a1d16;background:#fbfaf7;color:#a8321f;padding:.5rem 1.1rem}.ds-end-drop:hover{background:#2a1d16;color:#fbfaf7}.ds-end-cancel{border:2px solid transparent;background:none;color:#4f453d;padding:.5rem 1.1rem}.ds-end-cancel:hover{background:#d9d3c7;color:#2a1d16}.ds-end button:focus-visible{outline:3px solid #9c5a24;outline-offset:2px}"
+    },
+    {
+      "name": "Mic Alert",
+      "kind": "custom",
+      "refersTo": "mic-alert",
+      "description": "The microphone would not open: what went wrong, what to do, and a retry, beside the mic.",
+      "html": "<div class=\"ds-mic-alert\" role=\"alert\"><p>Chrome 没有麦克风权限。点地址栏最左边的图标，把「麦克风」改成「允许」，然后点「再试一次」。</p><button><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"9\" y=\"3.5\" width=\"6\" height=\"11\" rx=\"3\"/><path d=\"M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5\"/></svg>再试一次</button></div>",
+      "css": ".ds-mic-alert{display:flex;flex-wrap:wrap;align-items:center;gap:.6rem 1rem;padding:.7rem 1rem;border:1.5px solid #a8321f;border-radius:14px;background:#fbfaf7;color:#a8321f;font-weight:600;font-family:-apple-system,'PingFang SC',sans-serif}.ds-mic-alert p{margin:0;flex:1 1 16rem;font-size:.92rem}.ds-mic-alert button{display:inline-flex;align-items:center;gap:.45rem;border:2px solid #2a1d16;border-radius:999px;background:#fbfaf7;color:#2a1d16;padding:.5rem 1.1rem;font:inherit;font-weight:400;cursor:pointer}.ds-mic-alert button:hover{background:#2a1d16;color:#fbfaf7}.ds-mic-alert button:focus-visible{outline:3px solid #9c5a24;outline-offset:2px}"
+    },
+    {
+      "name": "Session Recap Quote",
+      "kind": "custom",
+      "refersTo": "recap-quote",
+      "description": "The line of hers that closes a session, between two iron rules.",
+      "html": "<figure class=\"ds-recap-quote\"><blockquote>那年发大水，房子塌了半边，我们一家就住在窑洞里过了一冬。</blockquote><figcaption>姥姥今天说的</figcaption></figure>",
+      "css": ".ds-recap-quote{margin:0;padding:1.4rem 0 1.4rem 1.6rem;border-top:2px solid #2a1d16;border-bottom:2px solid #2a1d16}.ds-recap-quote blockquote{margin:0;font-family:'Noto Serif SC','Songti SC',serif;font-size:1.6rem;line-height:1.7;color:#2a1d16;text-wrap:balance}.ds-recap-quote blockquote::before{content:'「';margin-left:-1em}.ds-recap-quote blockquote::after{content:'」'}.ds-recap-quote figcaption{margin-top:.6rem;font-family:-apple-system,'PingFang SC',sans-serif;font-size:.85rem;color:#4f453d}"
     }
   ],
   "narrative": {
@@ -353,6 +392,11 @@
       {
         "name": "The Glaze Is Context Rule",
         "body": "Grey glaze carries reference material that helps her recall (era cues, \"that year\" strips). Her own words never sit on glaze, and glaze content is excluded from print.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Ochre While Choosing Rule",
+        "body": "When the end-of-session choice is open, its 保存并结束 is the screen's only ochre fill: the main save pill drops to glaze with soft-iron text until the choice closes.",
         "section": "colors"
       },
       {
@@ -382,7 +426,10 @@
       "Do mark progress with the stage band: fired iron for done, ochre for current, fresh glaze for not yet.",
       "Do set her words in Noto Serif SC and the app's own large voice in LXGW WenKai at weight 400.",
       "Do put era and context material on grey glaze and keep it out of the printed book.",
-      "Do draw new icons as 24px-grid SVG with a 2px round stroke in currentColor."
+      "Do draw new icons as 24px-grid SVG with a 2px round stroke in currentColor.",
+      "Do resolve a decision about her words in place, in the bar where it was asked (the end choice), with Esc as \"not yet\".",
+      "Do acknowledge a save at the save button itself; toasts are for things that happen elsewhere.",
+      "Do keep what she already said with the question it answered: moving to another question, stage or mode first saves the words in the well where they belong."
     ],
     "donts": [
       "Don't add a dark mode; the system is light only.",
@@ -390,7 +437,9 @@
       "Don't use square corners on controls; buttons, tags, and selects are full pills.",
       "Don't add shadows to cards, panels, or wells; shadow belongs to the primary button, the mic, and the toast.",
       "Don't use emoji or text glyphs as icons.",
-      "Don't let a display font with partial CJK coverage near AI-generated text; it must cover GB2312 at minimum."
+      "Don't let a display font with partial CJK coverage near AI-generated text; it must cover GB2312 at minimum.",
+      "Don't put instructions or status in the question's display slot; the display face at 52px is for the question read to her.",
+      "Don't nest a dashed note box inside a settings panel."
     ]
   }
 }

@@ -98,6 +98,10 @@ main { outline: none; }
 .band-seg.done { background: var(--iron); color: var(--rim-ink); }
 .band-seg.done:hover { background: #3d2c22; }
 .band-seg.on { background: var(--ochre); color: #fff; font-weight: 600; }
+.band.compact .band-seg .full { display: none; }
+.band.compact .band-seg .short { display: inline; }
+.band.tight .band-seg { padding-inline: .7rem; }
+.band-seg.on .n { opacity: 1; }
 .band-seg .n { margin-left: .35rem; font-size: .72rem; font-weight: 400; font-variant-numeric: tabular-nums; opacity: .8; }
 
 /* ---- interview ---- */
@@ -107,16 +111,16 @@ main { outline: none; }
 .work-top .pill { align-self: flex-end; white-space: nowrap; margin-top: -.2rem; }
 .mode-note { font-size: .85rem; color: var(--iron-soft); background: var(--slip-hi); border: 1.5px dashed var(--iron-soft); border-radius: 14px; padding: .6rem .9rem; margin: 0 0 1.4rem; max-width: 46rem; }
 
-.q { font-family: var(--display); font-weight: 400; font-size: clamp(2.1rem, 3.3vw, 3.1rem); line-height: 1.3; max-width: 25em; margin-bottom: 1.4rem; text-wrap: balance; min-height: 1.3em; }
+.q { font-family: var(--display); font-weight: 400; font-size: clamp(2.1rem, 3.3vw, 3.1rem); line-height: 1.3; max-width: 25em; margin-bottom: 1.4rem; text-wrap: balance; min-height: 2.6em; } /* two lines reserved: question length doesn't move the mic */
 .q .clause, .q-sub .clause { display: inline-block; }
 .band-seg .short { display: none; }
 .q.loading::after { content: "▍"; color: var(--ochre); animation: blink 1s steps(1) infinite; }
-.q.free { color: var(--ochre-deep); }
+.q.free { color: var(--ochre-deep); min-height: 0; } /* its sub-line fills the reserved second line */
 .q-sub { color: var(--iron-soft); margin: -.6rem 0 1.2rem; max-width: 40rem; }
 @keyframes blink { 50% { opacity: 0; } }
 
 .rec { display: flex; gap: 2rem; margin-top: 1.6rem; align-items: flex-start; }
-.mic-col { flex: none; display: flex; flex-direction: column; align-items: center; }
+.mic-col { flex: none; width: 12rem; display: flex; flex-direction: column; align-items: center; } /* fixed: entering free mode mustn't slide the well */
 .mic-col .pill.strong { margin-top: .4rem; white-space: nowrap; }
 .mic {
   width: 128px; height: 128px; border-radius: 50%; border: 0; cursor: pointer;
@@ -146,6 +150,7 @@ main { outline: none; }
 .interim.error { color: var(--rec); font-family: var(--ui); font-weight: 600; }
 .first-hints { display: grid; gap: .3rem; margin-top: 1rem; }
 .keys kbd { font-family: var(--ui); }
+.help-link { color: var(--ochre-deep); margin-left: auto; }
 .start-free { display: flex; flex-wrap: wrap; align-items: center; gap: .8rem; margin-top: 1.6rem; }
 .interim { color: var(--iron-soft); min-height: 1.6em; font-family: var(--words); margin-top: .3rem; }
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: .8rem; margin-top: .8rem; }
@@ -158,7 +163,7 @@ main { outline: none; }
 .end-choices { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
 /* While choosing, the bar's 保存并结束 is the one ochre on screen. */
 .interview.is-ending .actions .btn-primary { background: var(--glaze); color: var(--iron-soft); box-shadow: none; opacity: 1; }
-.mic-alert { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1rem; margin-bottom: .8rem; padding: .7rem 1rem; border: 1.5px solid var(--rec); border-radius: 14px; background: var(--slip-hi); color: var(--rec); font-weight: 600; }
+.mic-alert { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1rem; margin-top: .4rem; padding: .7rem 1rem; border: 1.5px solid var(--rec); border-radius: 14px; background: var(--slip-hi); color: var(--rec); font-weight: 600; }
 .mic-alert p { flex: 1 1 16rem; font-size: .92rem; }
 .mic-alert .pill { flex: none; }
 .help ul ul, .help ol ul { margin-top: .4rem; }
@@ -191,6 +196,7 @@ main { outline: none; }
 .cue-q { font-family: var(--words); font-size: 1rem; line-height: 1.65; margin: .45rem 0 .5rem; }
 .cue-tools { display: flex; align-items: baseline; gap: .9rem; font-size: .78rem; }
 .cue-tools .link { white-space: nowrap; flex: none; font-size: .82rem; }
+.cue-tools a { display: inline-flex; align-items: center; min-height: 24px; }
 
 /* ---- pages ---- */
 .page { padding: 2.6rem 3rem 4rem; max-width: 1180px; margin: 0 auto; }
@@ -320,6 +326,8 @@ main { outline: none; }
   .work, .page, .start { padding: 1.4rem 1rem 2.4rem; }
   .work-top { flex-direction: column; }
   .rec { flex-direction: column; align-items: center; }
+  .mic-col { width: auto; }
+  .q { min-height: 0; }
   .tl-item { grid-template-columns: 1fr; gap: .3rem; }
   .band { display: grid; grid-template-columns: repeat(4, 1fr); border-radius: 18px; overflow: hidden; width: 100%; }
   .band-seg, .start .band-seg { padding: .6rem .2rem; font-size: .85rem; border-bottom: 1.5px solid var(--iron); }

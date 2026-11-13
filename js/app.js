@@ -137,7 +137,21 @@ function render() {
     box.addEventListener('input', () => { state.draft = box.value; saveDraftSoon(); });
   }
   hydratePhotos();
+  fitBands();
+  requestAnimationFrame(fitBands); // again once layout has settled
 }
+
+/** The stage band must never hide part of her life: drop to short names, then tighter padding, when it doesn't fit. */
+function fitBands() {
+  for (const band of document.querySelectorAll('.band')) {
+    band.classList.remove('compact', 'tight');
+    if (band.scrollWidth <= band.clientWidth + 1) continue;
+    band.classList.add('compact');
+    if (band.scrollWidth > band.clientWidth + 1) band.classList.add('tight');
+  }
+}
+window.addEventListener('resize', () => { clearTimeout(fitBands.t); fitBands.t = setTimeout(fitBands, 100); });
+document.fonts?.ready.then(() => fitBands());
 
 // Photos render as <img data-photo=id>; object URLs are filled in after each render.
 const photoUrls = new Map();
@@ -217,15 +231,16 @@ function viewInterview() {
           ${state.free ? '' : `<button class="pill strong" data-action="free-memory" aria-keyshortcuts="F" ${locked ? 'disabled' : ''}>${icon('memory')}姥姥想起别的事</button>`}
         </div>
         <div class="well-col">
-          ${state.micError ? `<div class="mic-alert" role="alert"><p>${h(state.micError.text)}</p><button class="pill" data-action="mic-retry">${icon('mic')}再试一次</button></div>` : ''}
           <textarea id="answer-box" class="well ${rec ? 'live' : ''}" aria-label="姥姥说的话" placeholder="${rec ? '姥姥说的话会出现在这里…' : '点「开始说」录音，姥姥说的话会自动变成文字；也可以直接打字，随时能改。'}"></textarea>
-          <div class="interim ${state.speechNote ? 'error' : ''}" id="interim" role="status">${h(state.speechNote || state.interim)}</div>
+          ${state.micError ? `<div class="mic-alert" role="alert"><p>${h(state.micError.text)}</p><button class="pill" data-action="mic-retry">${icon('mic')}再试一次</button></div>`
+            : `<div class="interim ${state.speechNote ? 'error' : ''}" id="interim" role="status">${h(state.speechNote || state.interim)}</div>`}
           ${!speechSupport.recognition ? `<p class="mode-note">这个浏览器不能把语音直接转成文字（建议用 Chrome）。录音照常保存；文字可以打字，或点进文本框后按两下 <kbd>fn</kbd> 用 Mac 听写。</p>` : ''}
           <div class="actions">
             <button class="btn-primary" data-action="save-answer" ${locked ? 'disabled' : ''}>${state.free ? '保存这段回忆' : '保存，问下一个'}${icon('arrow')}</button>
             ${state.justSaved ? `<span class="saved-note" id="saved-note" role="status">已记下第 ${state.justSaved.n} 段 · <button class="link" data-action="edit-saved" data-id="${state.justSaved.id}">改一下</button></span>`
               : `<button class="pill quiet" data-action="clear-draft" ${rec ? 'disabled' : ''}>清空</button>
-            <span class="hint keys"><kbd>空格</kbd> 录音 / 暂停 · ${state.free ? '' : '<kbd>F</kbd> 想起别的事 · '}<kbd>⌘</kbd> + <kbd>回车</kbd> 保存</span>`}
+            <span class="hint keys"><kbd>空格</kbd> 录音 / 暂停（文本框里 <kbd>⌥</kbd>+<kbd>空格</kbd>）· ${state.free ? '' : '<kbd>F</kbd> 想起别的事 · '}<kbd>⌘</kbd>+<kbd>回车</kbd> 保存</span>
+            <a class="hint help-link" href="#help">怎么用？</a>`}
           </div>
           ${firstTime ? `<div class="first-hints">
             ${state.free ? '' : '<p class="hint">姥姥说起了和问题无关的事？点左边「姥姥想起别的事」单独记下，不用管问题。</p>'}
@@ -259,11 +274,11 @@ function hasUnsaved() {
 function endChoice() {
   const text = state.draft.trim();
   const preview = text.length > 60 ? `${text.slice(0, 60)}…` : text;
-  return `<div class="session-end ending" role="group" aria-labelledby="end-title">
+  return `<div class="session-end ending" id="end-choice" tabindex="-1" role="group" aria-labelledby="end-title">
     <div class="end-copy">
       <b id="end-title">这段还没保存</b>
       ${preview ? `<q class="end-quote">${h(preview)}</q>` : `<span class="hint">只有录音，还没有文字。</span>`}
-      <span class="hint">${preview ? '不保存的话，这段的文字不留，录音也不会放进回忆录。' : '不保存的话，这段录音不会放进回忆录。'}</span>
+      <span class="hint">${preview && state.pendingClips.length ? '不保存的话，这段的文字不留，录音也不会放进回忆录。' : preview ? '不保存的话，这段文字就不留了。' : '不保存的话，这段录音不会放进回忆录。'}</span>
     </div>
     <div class="end-choices">
       <button class="btn-primary small" data-action="end-save" id="end-first">保存并结束</button>
@@ -574,7 +589,7 @@ function viewHelp() {
         </ul>
       </li>
       <li><b>保存这段</b>：这个话题聊完了，点「保存，问下一个」，会出下一个问题。她停下来想一想时不用急着点，AI 也不会插嘴。</li>
-      <li><b>她说起别的事</b>：姥姥突然讲起和问题无关的事，点「姥姥想起别的事」，让她尽管说，说完点「保存这段回忆」。${hasAI() ? 'AI 会把它归到对应的人生阶段，再顺着往下问。' : '它会先放进「待归类」，以后在「回忆录」里选一下阶段就行。'}</li>
+      <li><b>她说起别的事</b>：姥姥突然讲起和问题无关的事，点「姥姥想起别的事」，让她尽管说，说完点「保存这段回忆」。她前面已经回答了一半的话，会先存成这个问题的回答，不会混进去。${hasAI() ? 'AI 会把它归到对应的人生阶段，再顺着往下问。' : '它会先放进「待归类」，以后在「回忆录」里选一下阶段就行。'}</li>
       <li><b>今天聊完了</b>：点最下面的「结束这次访谈」。这次的内容会存好，${hasAI() ? 'AI 会整理进「人生时间线」，' : ''}并<b>自动下载一份备份</b>到「下载」文件夹。</li>
     </ol>
 
@@ -615,7 +630,7 @@ function viewHelp() {
     <h2>小提示</h2>
     <ul>
       <li>姥姥累了就停，下次接着聊。她说「不记得了」就换个话题。</li>
-      <li>键盘快捷键（光标不在文本框里时）：<kbd>空格</kbd> 开始 / 暂停录音，<kbd>F</kbd> 记「姥姥想起别的事」，<kbd>⌘</kbd> + <kbd>回车</kbd> 保存。</li>
+      <li>键盘快捷键：<kbd>空格</kbd> 开始 / 暂停录音（光标在文本框里时用 <kbd>⌥</kbd> + <kbd>空格</kbd>，或先按 <kbd>Esc</kbd> 退出文本框），<kbd>F</kbd> 记「姥姥想起别的事」，<kbd>⌘</kbd> + <kbd>回车</kbd> 保存。</li>
       <li>录音和内容都只存在这台电脑上。用 AI 时，发给 AI 的只有文字，不发录音。</li>
     </ul>
   </div>`;
@@ -634,6 +649,7 @@ const actions = {
   },
   'switch-stage': async (el) => {
     if (state.voice || el.dataset.stage === state.session.stage) return;
+    await keepWhatWasSaid();
     state.session.stage = el.dataset.stage;
     state.free = false;
     await db.put('sessions', state.session);
@@ -642,13 +658,16 @@ const actions = {
     render();
   },
   speak: () => { if (state.question !== BANK_DONE) speak(state.question); },
-  'other-question': () => askNext(state.question),
-  'use-cue': (el) => { state.free = false; setQuestion(el.dataset.q); render(); },
+  'other-question': async () => { await keepWhatWasSaid(); return askNext(state.question); },
+  'use-cue': async (el) => { await keepWhatWasSaid(); state.free = false; setQuestion(el.dataset.q); render(); },
   'free-memory': async () => {
-    state.returnQuestion = state.question;
+    if (state.free) return;
+    // What she said so far answers the question on screen; the new memory starts clean.
+    const saved = await keepWhatWasSaid();
+    state.returnQuestion = saved ? '' : state.question; // answered: ask the next one when coming back
     state.free = true;
     render();
-    if (!state.voice) await startMic();
+    await startMic();
   },
   'start-free': async (el) => {
     const session = { id: `s_${cryptoId()}`, stage: el.dataset.stage, startedAt: Date.now(), endedAt: null };
@@ -763,8 +782,12 @@ const actions = {
     toast(`已清空 ${n} 段回答。可以正式开始了。`);
     go('interview');
   },
-  'cancel-free': () => { state.free = false; setQuestion(state.returnQuestion || state.question); render(); },
-  'toggle-mic': () => (state.voice ? stopMic() : startMic()),
+  'cancel-free': async () => {
+    await keepWhatWasSaid(); // a memory half told is still kept, in 待归类
+    state.free = false;
+    if (state.returnQuestion) { setQuestion(state.returnQuestion); render(); } else await askNext();
+  },
+  'toggle-mic': () => { state.ending = false; return state.voice ? stopMic() : startMic(); },
   'clear-draft': () => { state.draft = ''; state.interim = ''; render(); },
   'save-answer': saveAnswer,
   'end-session': endSession,
@@ -922,11 +945,7 @@ async function startMic() {
   state.speechNote = '';
   const box = document.getElementById('answer-box');
   if (box) state.draft = box.value;
-  if (!(await v.start(state.draft))) {
-    render();
-    document.querySelector('[data-action="mic-retry"]')?.focus();
-    return;
-  }
+  if (!(await v.start(state.draft))) { render(); return; } // the alert is announced (role=alert); focus stays put so shortcuts keep working
   state.voice = v;
   state.recordingSince = Date.now();
   render();
@@ -1069,6 +1088,16 @@ async function saveAnswerOnly() {
   return turn;
 }
 
+/** Before moving to another question, stage or mode: what's already been said stays with where it was said. */
+async function keepWhatWasSaid() {
+  if (!hasUnsaved()) return null;
+  const turn = await saveAnswerOnly();
+  if (!turn) return null;
+  acknowledge(turn);
+  if (turn.free) toast('刚才想起的事先记下了，放在「待归类」，在「回忆录」里可以归到对应阶段。');
+  return turn;
+}
+
 let savedTimer;
 /** Acknowledge a save right where the operator is looking, then get out of the way. */
 function acknowledge(turn) {
@@ -1096,7 +1125,8 @@ async function saveAnswer() {
   state.free = false;
   if (!hasAI() || !text) {
     toast('记下了，放在「待归类」。');
-    setQuestion(state.returnQuestion || state.question);
+    if (!state.returnQuestion) return askNext();
+    setQuestion(state.returnQuestion);
     render();
     return;
   }
@@ -1163,9 +1193,10 @@ function endSession() {
   if (hasUnsaved()) {
     state.ending = true;
     render();
-    const first = document.getElementById('end-first');
-    first?.scrollIntoView({ block: 'nearest' });
-    first?.focus({ preventScroll: true });
+    // Focus the choice itself, not a button: Space here means "she's talking again", never "end".
+    const box = document.getElementById('end-choice');
+    box?.scrollIntoView({ block: 'center' });
+    box?.focus({ preventScroll: true });
     return;
   }
   return finishSession();
@@ -1230,7 +1261,7 @@ async function closeSession() {
       next: suggestStage(state.stages, state.turns),
     };
     renderBackupPill();
-  }
+  } else toast('这次没有记下内容，访谈已结束。');
   render();
   window.scrollTo({ top: 0 });
   $app.focus({ preventScroll: true });
@@ -1367,6 +1398,16 @@ document.addEventListener('change', async (e) => {
 
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && state.ending) { e.preventDefault(); actions['end-cancel'](); return; }
+  const interviewing = state.view === 'interview' && state.session;
+  // ⌥Space toggles the mic from anywhere, the transcript well included.
+  if (interviewing && e.altKey && e.code === 'Space' && !e.metaKey && !e.ctrlKey) {
+    e.preventDefault();
+    const mic = document.querySelector('[data-action="toggle-mic"]');
+    if (mic && !mic.disabled && !e.repeat) mic.click();
+    return;
+  }
+  // Esc leaves the well so the one-key shortcuts work again.
+  if (e.key === 'Escape' && document.activeElement?.id === 'answer-box') { document.activeElement.blur(); return; }
   // One-key shortcuts while interviewing, only when nothing else would take the key.
   if (state.view === 'interview' && state.session && !e.metaKey && !e.ctrlKey && !e.altKey && !e.repeat && !takesKeys(document.activeElement)) {
     const target = e.code === 'Space' ? 'toggle-mic' : e.code === 'KeyF' ? 'free-memory' : null;
